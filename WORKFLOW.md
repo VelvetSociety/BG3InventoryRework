@@ -33,16 +33,16 @@ A custom BG3 mod that adds a unified inventory panel showing all party members' 
 
 ## File Locations
 
-**Live mod (what the game loads):**
+**Canonical source (git repo + junction, edits go here):**
 ```
-C:\Program Files (x86)\Steam\steamapps\common\Baldurs Gate 3\Data\Mods\BG3InventoryRework\
+C:\Users\BogdanMichon\Documents\BaldursGateInventory\Mod\
 ├── GUI\Pages\
 │   ├── InventoryPanel.xaml                ← Unified inventory XAML
 │   └── ArmoryPanel.xaml                   ← Armory panel XAML
 ├── ScriptExtender\Lua\Client\
 │   ├── InventoryPanelVM.lua               ← Inventory ViewModel + NativeSlots + INVRW_SlotWrapper type
 │   ├── ArmoryPanelVM.lua                  ← Armory ViewModel + equipped slots + equip action
-│   ├── InventoryUI.lua                    ← F11 toggle, panel registration
+│   ├── InventoryUI.lua                    ← F10 toggle, panel registration
 │   └── NetHandlers.lua                    ← Client net message handlers
 ├── ScriptExtender\Lua\Server\
 │   ├── InventoryCollector.lua             ← Item collection + equipped detection (Osi + inventory container)
@@ -54,9 +54,9 @@ C:\Program Files (x86)\Steam\steamapps\common\Baldurs Gate 3\Data\Mods\BG3Invent
     └── BootstrapServer.lua
 ```
 
-**Repo backup (sync manually after changes):**
+**Steam mod path (junction → Mod\, do not edit here directly):**
 ```
-C:\Users\BogdanMichon\Documents\BaldursGateInventory\BG3InventoryRework\
+C:\Program Files (x86)\Steam\steamapps\common\Baldurs Gate 3\Data\Mods\BG3InventoryRework\
 ```
 
 **Unpacked vanilla game XAML (read-only reference):**
@@ -201,19 +201,20 @@ INVRW_EquipSlot = {
 ## Keybinds
 
 - **F10** — Toggle inventory panel (also tries to bind VM on first press)
-- **F11** — Toggle inventory panel (via InventoryUI.lua)
+- **F11** — Toggle Armory panel
 - **F9** — Debug probe (ShortDescription/Icon deep-dive)
-- **F12** — Toggle Armory panel
 - **T** — Pin/focus tooltip (native game binding via `UIPinTooltip` event) — allows hovering LSTag elements for nested tooltips
 
 ## Testing Workflow
 
-1. Edit files in Steam path: `C:\Program Files (x86)\Steam\...\Data\Mods\BG3InventoryRework\`
+1. Edit files in `C:\Users\BogdanMichon\Documents\BaldursGateInventory\Mod\` (the git repo)
 2. In-game: open SE console, run `reset` to reload Lua (or restart game for XAML changes)
-3. Press F10/F11 to open panel
+3. Press F10 (inventory) or F11 (armory) to open panel
 4. Hover items to test tooltips
 5. Check SE console for `[BG3InventoryRework]` log lines
-6. Copy working files to repo backup when stable
+6. Commit when stable: `git add Mod/path/to/file && git commit -m "..."`
+
+> The Steam mod path is a directory junction pointing to `Mod/` — no copy step needed.
 
 ## Tooltip Pinning
 
@@ -309,7 +310,7 @@ Note: Both Ring slots use `Slot="Ring"` in `Equipable.Slot` — the Ring vs Ring
 
 ## Current State (2026-03-21)
 
-**Unified Inventory (F11):**
+**Unified Inventory (F10):**
 - Full native tooltips working (description, damage, AC, passives, comparison panel)
 - Tooltip pinning works (T key) — nested LSTag tooltips accessible
 - All party members' items displayed (bag + equipped)
@@ -318,7 +319,7 @@ Note: Both Ring slots use `Slot="Ring"` in `Equipable.Slot` — the Ring vs Ring
 - Panel draggable, close button, refresh button
 - Status bar showing item count
 
-**Armory (F12):**
+**Armory (F11):**
 - Equipped slots left panel with correct icons (DataStore-based, no Noesis proxy staleness)
 - Equipped detection working via Osi + inventory container fallback
 - Click-to-filter: clicking equipped slot filters right panel to compatible items
