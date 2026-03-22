@@ -1,0 +1,970 @@
+<ls:UIWidget x:Name="ArmoryPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ls="clr-namespace:ls;assembly=Code"
+             xmlns:noesis="clr-namespace:NoesisGUIExtensions;assembly=Noesis.GUI.Extensions"
+             xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance {x:Type ls:DCWidget}, IsDesignTimeCreatable=True}">
+
+    <ls:UIWidget.Resources>
+        <ResourceDictionary>
+            <BitmapImage x:Key="CharPanelBg"
+                         UriSource="pack://application:,,,/Core;component/Assets/CharacterPanel/genericFaded_bg.png"/>
+            <BitmapImage x:Key="SlotBg"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared/slot_inventory.png"/>
+            <BitmapImage x:Key="CloseBtnD"
+                         UriSource="pack://application:,,,/Core;component/Assets/Container/container_closeBtn_d.png"/>
+            <BitmapImage x:Key="CloseBtnH"
+                         UriSource="pack://application:,,,/Core;component/Assets/Container/container_closeBtn_h.png"/>
+            <BitmapImage x:Key="SlotHighlight"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared/invSlot_selector.png"/>
+            <BitmapImage x:Key="RefreshIconD"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared/ico_refresh_d.png"/>
+            <BitmapImage x:Key="RefreshIconH"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared/ico_refresh_h.png"/>
+
+            <SolidColorBrush x:Key="RarityCommon"    Color="#AAAAAA"/>
+            <SolidColorBrush x:Key="RarityUncommon"  Color="#1EFF00"/>
+            <SolidColorBrush x:Key="RarityRare"      Color="#0070FF"/>
+            <SolidColorBrush x:Key="RarityVeryRare"  Color="#A335EE"/>
+            <SolidColorBrush x:Key="RarityLegendary" Color="#FF8000"/>
+
+            <SolidColorBrush x:Key="SlotChipActive"   Color="#44c8b88a"/>
+            <SolidColorBrush x:Key="SlotChipInactive"  Color="#22FFFFFF"/>
+            <SolidColorBrush x:Key="SlotChipBorder"    Color="#FFc8b88a"/>
+
+            <!-- Filter panel brushes -->
+            <SolidColorBrush x:Key="FilterSectionHeader" Color="#FFc8b88a"/>
+            <SolidColorBrush x:Key="FilterText"          Color="#FFd4cfc0"/>
+            <SolidColorBrush x:Key="FilterActiveChip"    Color="#44c8b88a"/>
+            <SolidColorBrush x:Key="FilterInactiveChip"  Color="#22FFFFFF"/>
+            <SolidColorBrush x:Key="SortActiveBg"        Color="#44c8b88a"/>
+
+            <!-- Checkbox / round button images (same paths as InventoryPanel) -->
+            <BitmapImage x:Key="RoundBtnD"
+                         UriSource="pack://application:,,,/Core;component/Assets/Container/container_roundBtn_d.png"/>
+            <BitmapImage x:Key="RoundBtnH"
+                         UriSource="pack://application:,,,/Core;component/Assets/Container/container_roundBtn_h.png"/>
+            <BitmapImage x:Key="CheckOff"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared_c/c_checkHolder_d.DDS"/>
+            <BitmapImage x:Key="CheckOffH"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared_c/c_checkHolder_h.DDS"/>
+            <BitmapImage x:Key="CheckOn"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared_c/c_checkHolder_active_d.DDS"/>
+            <BitmapImage x:Key="CheckOnH"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared_c/c_checkHolder_active_h.DDS"/>
+            <BitmapImage x:Key="CheckMark"
+                         UriSource="pack://application:,,,/Core;component/Assets/Shared_c/c_checkmark.DDS"/>
+
+            <!-- Filter checkbox template -->
+            <!-- Uses Trigger Property="Tag" (not DataTrigger) to react to binding-driven Tag changes in Noesis -->
+            <ControlTemplate x:Key="FilterCheckboxTemplate" TargetType="Button">
+                <Grid Margin="2,3" Cursor="Hand">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="28"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid Grid.Column="0" Width="24" Height="24" VerticalAlignment="Center">
+                        <Image x:Name="chkBg" Source="{StaticResource CheckOff}" Stretch="Uniform"/>
+                        <Image x:Name="chkMark" Source="{StaticResource CheckMark}" Stretch="Uniform"
+                               Visibility="Collapsed"/>
+                    </Grid>
+                    <TextBlock Grid.Column="1" Text="{TemplateBinding Content}"
+                               Foreground="{StaticResource FilterText}"
+                               FontSize="20" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="chkBg" Property="Source" Value="{StaticResource CheckOffH}"/>
+                    </Trigger>
+                    <Trigger Property="Tag" Value="True">
+                        <Setter TargetName="chkBg" Property="Source" Value="{StaticResource CheckOn}"/>
+                        <Setter TargetName="chkMark" Property="Visibility" Value="Visible"/>
+                    </Trigger>
+                    <MultiTrigger>
+                        <MultiTrigger.Conditions>
+                            <Condition Property="Tag" Value="True"/>
+                            <Condition Property="IsMouseOver" Value="True"/>
+                        </MultiTrigger.Conditions>
+                        <Setter TargetName="chkBg" Property="Source" Value="{StaticResource CheckOnH}"/>
+                    </MultiTrigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+
+            <!-- Filter chip template (compact pill) -->
+            <ControlTemplate x:Key="FilterChipTemplate" TargetType="Button">
+                <Border x:Name="chipBorder" CornerRadius="12"
+                        Background="{StaticResource FilterInactiveChip}"
+                        Padding="10,4" Margin="2,2" Cursor="Hand">
+                    <TextBlock Text="{TemplateBinding Content}"
+                               Foreground="{StaticResource FilterText}"
+                               FontSize="18" HorizontalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="chipBorder" Property="Background" Value="{StaticResource FilterActiveChip}"/>
+                    </Trigger>
+                    <Trigger Property="Tag" Value="True">
+                        <Setter TargetName="chipBorder" Property="Background" Value="{StaticResource FilterActiveChip}"/>
+                        <Setter TargetName="chipBorder" Property="BorderBrush" Value="{StaticResource FilterSectionHeader}"/>
+                        <Setter TargetName="chipBorder" Property="BorderThickness" Value="1"/>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+
+            <!-- Close button -->
+            <ControlTemplate x:Key="CloseButtonTemplate" TargetType="Button">
+                <Grid>
+                    <Image x:Name="btnImg" Source="{StaticResource CloseBtnD}" Stretch="None"/>
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="btnImg" Property="Source"
+                                Value="{StaticResource CloseBtnH}"/>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+
+            <!-- Slot chip -->
+            <ControlTemplate x:Key="SlotChipTemplate" TargetType="Button">
+                <Border x:Name="chipBorder" CornerRadius="12"
+                        Background="{StaticResource SlotChipInactive}"
+                        Padding="12,6" Margin="3,3" Cursor="Hand">
+                    <TextBlock Text="{TemplateBinding Content}"
+                               Foreground="#FFd4cfc0"
+                               FontSize="20" HorizontalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="chipBorder" Property="Background" Value="{StaticResource SlotChipActive}"/>
+                    </Trigger>
+                    <Trigger Property="Tag" Value="True">
+                        <Setter TargetName="chipBorder" Property="Background" Value="{StaticResource SlotChipActive}"/>
+                        <Setter TargetName="chipBorder" Property="BorderBrush" Value="{StaticResource SlotChipBorder}"/>
+                        <Setter TargetName="chipBorder" Property="BorderThickness" Value="1"/>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+
+            <!-- Equipped slot cell: LSEntityObject for tooltips, collapsed when empty -->
+            <Style x:Key="EquippedSlotStyle" TargetType="ListBoxItem">
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Grid Width="96" Height="96">
+                                <Image Source="{StaticResource SlotBg}" Stretch="Fill"/>
+                                <!-- Per-slot icon: slot silhouette when empty, EQ_blank when equipped -->
+                                <Image x:Name="SlotTypeIcon" Source="{Binding SlotIcon}"
+                                       Stretch="Uniform" Margin="2" Opacity="0.6"
+                                       IsHitTestVisible="False"/>
+                                <Image x:Name="RarityBack" Stretch="Fill"
+                                       Visibility="Collapsed" IsHitTestVisible="False"/>
+                                <!-- LSEntityObject for item icon + tooltip, collapsed by default -->
+                                <ls:LSEntityObject x:Name="ItemEntity" Visibility="Collapsed"
+                                                   DataContext="{Binding NativeObject}"
+                                                   EntityRef="{Binding DataContext.NativeHandle,
+                                                       RelativeSource={RelativeSource Mode=TemplatedParent}}"
+                                                   Background="Transparent"
+                                                   ToolTipService.Placement="Right">
+                                    <ls:LSEntityObject.ToolTip>
+                                        <ls:LSTooltip Content="{Binding DataContext.NativeObject,
+                                            RelativeSource={RelativeSource Mode=TemplatedParent}}"
+                                            CanBePinned="True"/>
+                                    </ls:LSEntityObject.ToolTip>
+                                </ls:LSEntityObject>
+                                <Image x:Name="ItemIcon" Source="{Binding ItemIcon}"
+                                       Stretch="Uniform" Margin="6"
+                                       Visibility="Collapsed" IsHitTestVisible="False"/>
+                                <Image x:Name="RarityFront" Stretch="Fill"
+                                       Visibility="Collapsed" IsHitTestVisible="False"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <!-- Show LSEntityObject only when item is equipped -->
+                                <DataTrigger Binding="{Binding HasItem}" Value="True">
+                                    <Setter TargetName="ItemEntity" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="ItemIcon" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Uncommon">
+                                    <Setter TargetName="RarityBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_uncommon_back.png"/>
+                                    <Setter TargetName="RarityBack" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="RarityFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_uncommon_front.png"/>
+                                    <Setter TargetName="RarityFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Rare">
+                                    <Setter TargetName="RarityBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_rare_back.png"/>
+                                    <Setter TargetName="RarityBack" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="RarityFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_rare_front.png"/>
+                                    <Setter TargetName="RarityFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="VeryRare">
+                                    <Setter TargetName="RarityBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_veryrare_back.png"/>
+                                    <Setter TargetName="RarityBack" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="RarityFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_veryrare_front.png"/>
+                                    <Setter TargetName="RarityFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Legendary">
+                                    <Setter TargetName="RarityBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_legendary_back.png"/>
+                                    <Setter TargetName="RarityBack" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="RarityFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_legendary_front.png"/>
+                                    <Setter TargetName="RarityFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Armory item cell (same structure as NativeTooltipTestStyle from InventoryPanel) -->
+            <Style x:Key="ArmoryItemStyle" TargetType="ListBoxItem">
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Grid Width="96" Height="96">
+                                <!-- Slot background always visible (even for empty slots) -->
+                                <Image Source="{StaticResource SlotBg}" Stretch="Fill"
+                                       IsHitTestVisible="False"/>
+                                <ls:LSEntityObject x:Name="CellRoot"
+                                                   DataContext="{Binding NativeObject}"
+                                                   EntityRef="{Binding DataContext.NativeHandle,
+                                                       RelativeSource={RelativeSource Mode=TemplatedParent}}"
+                                                   Background="Transparent"
+                                                   ToolTipService.Placement="Right">
+                                    <b:Interaction.Triggers>
+                                        <b:EventTrigger EventName="MouseLeftButtonDown">
+                                            <b:InvokeCommandAction
+                                                Command="{Binding DataContext.EquipSelectedCommand,
+                                                    RelativeSource={RelativeSource AncestorType={x:Type ls:UIWidget}}}"/>
+                                        </b:EventTrigger>
+                                    </b:Interaction.Triggers>
+                                    <ls:LSEntityObject.ToolTip>
+                                        <ls:LSTooltip Content="{Binding DataContext.NativeObject,
+                                            RelativeSource={RelativeSource Mode=TemplatedParent}}"
+                                            CanBePinned="True"/>
+                                    </ls:LSEntityObject.ToolTip>
+                                    <Grid Width="96" Height="96">
+                                        <Image x:Name="RarityFrameBack"
+                                               Stretch="Fill" Visibility="Collapsed"
+                                               IsHitTestVisible="False"/>
+                                        <Rectangle Fill="{Binding Icon}" Stretch="Uniform" Margin="6"/>
+                                        <Image x:Name="RarityFrameFront"
+                                               Stretch="Fill" Visibility="Collapsed"
+                                               IsHitTestVisible="False"/>
+                                        <Image x:Name="SelectionHighlight"
+                                               Source="{StaticResource SlotHighlight}"
+                                               Stretch="Fill" Visibility="Collapsed"/>
+                                    </Grid>
+                                </ls:LSEntityObject>
+                                <Viewbox x:Name="StackBadge" Visibility="Collapsed"
+                                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                         StretchDirection="DownOnly"
+                                         MaxWidth="56" MaxHeight="32"
+                                         IsHitTestVisible="False">
+                                    <TextBlock Text="{Binding StackSize}"
+                                               Foreground="White" FontSize="32" FontWeight="Bold"
+                                               noesis:Text.Stroke="#FF000000"
+                                               noesis:Text.StrokeThickness="8"
+                                               Margin="4,0"/>
+                                </Viewbox>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="SelectionHighlight"
+                                            Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="SelectionHighlight"
+                                            Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Uncommon">
+                                    <Setter TargetName="RarityFrameBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_uncommon_back.png"/>
+                                    <Setter TargetName="RarityFrameBack" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Rare">
+                                    <Setter TargetName="RarityFrameBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_rare_back.png"/>
+                                    <Setter TargetName="RarityFrameBack" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="VeryRare">
+                                    <Setter TargetName="RarityFrameBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_veryrare_back.png"/>
+                                    <Setter TargetName="RarityFrameBack" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Legendary">
+                                    <Setter TargetName="RarityFrameBack" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_legendary_back.png"/>
+                                    <Setter TargetName="RarityFrameBack" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Uncommon">
+                                    <Setter TargetName="RarityFrameFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_uncommon_front.png"/>
+                                    <Setter TargetName="RarityFrameFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Rare">
+                                    <Setter TargetName="RarityFrameFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_rare_front.png"/>
+                                    <Setter TargetName="RarityFrameFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="VeryRare">
+                                    <Setter TargetName="RarityFrameFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_veryrare_front.png"/>
+                                    <Setter TargetName="RarityFrameFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Rarity}" Value="Legendary">
+                                    <Setter TargetName="RarityFrameFront" Property="Source"
+                                            Value="pack://application:,,,/Core;component/Assets/Shared/rarityFrame_legendary_front.png"/>
+                                    <Setter TargetName="RarityFrameFront" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ShowStack}" Value="True">
+                                    <Setter TargetName="StackBadge" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <!-- Collapse LSEntityObject when NativeObject is null (empty slots) -->
+                                <DataTrigger Binding="{Binding NativeObject}" Value="{x:Null}">
+                                    <Setter TargetName="CellRoot" Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        </ResourceDictionary>
+    </ls:UIWidget.Resources>
+
+    <Canvas x:Name="Root">
+
+        <ls:LSNineSliceImage x:Name="PanelRoot"
+                Canvas.Left="340" Canvas.Top="60"
+                Width="2200" Height="1000"
+                ImageSource="{StaticResource CharPanelBg}"
+                Slices="52"
+                Padding="24,20,24,16">
+
+            <b:Interaction.Behaviors>
+                <b:MouseDragElementBehavior/>
+            </b:Interaction.Behaviors>
+
+            <Grid Background="Transparent">
+                <ls:LSInputBinding Style="{DynamicResource PinTooltipBindingStyle}"/>
+
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <TextBlock Text="Armory"
+                               FontSize="32" FontWeight="Bold"
+                               Foreground="#E6DBC2"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <!-- Filter toggle button -->
+                        <Button Command="{Binding ToggleFilterPanelCommand}"
+                                Cursor="Hand" Margin="0,0,8,0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Grid Width="48" Height="48">
+                                        <Image x:Name="filterBg"
+                                               Source="{StaticResource RoundBtnD}"
+                                               Stretch="Uniform"/>
+                                        <TextBlock x:Name="filterIco" Text="&#x2630;"
+                                                   Foreground="White" FontSize="20"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                        <!-- Active filter count badge -->
+                                        <Border x:Name="filterBadge"
+                                                Background="#CC8B0000" CornerRadius="8"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top"
+                                                Margin="0,-4,-4,0"
+                                                Padding="4,1"
+                                                MinWidth="16">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ActiveFilterCount}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding ActiveFilterCount}"
+                                                       Foreground="White" FontSize="11"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="filterBg" Property="Source"
+                                                    Value="{StaticResource RoundBtnH}"/>
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding FilterPanelVisible}" Value="True">
+                                            <Setter TargetName="filterBg" Property="Source"
+                                                    Value="{StaticResource RoundBtnH}"/>
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <!-- Close button -->
+                        <Button Template="{StaticResource CloseButtonTemplate}"
+                                Command="{Binding ToggleCommand}"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Main content -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="240"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Equipped slots (2-column icon grid) -->
+                    <Border Grid.Column="0" Background="#28c8b88a" CornerRadius="8"
+                            BorderBrush="#44c8b88a" BorderThickness="1.5"
+                            Margin="0,0,12,0" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="{Binding CharacterName}"
+                                       Foreground="#FFd4cfc0" FontSize="22"
+                                       FontWeight="Bold" Margin="0,0,0,8"
+                                       TextTrimming="CharacterEllipsis"/>
+
+                            <Border Grid.Row="1"
+                                    ls:TooltipExtender.Owner="{Binding SelectedChar}">
+                                <ListBox ItemsSource="{Binding EquippedSlots}"
+                                         ItemContainerStyle="{StaticResource EquippedSlotStyle}"
+                                         SelectedIndex="{Binding EquippedSlotIndex, Mode=TwoWay}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <b:Interaction.Triggers>
+                                        <b:EventTrigger EventName="SelectionChanged">
+                                            <b:InvokeCommandAction
+                                                Command="{Binding DataContext.EquippedSlotClickCommand,
+                                                    RelativeSource={RelativeSource AncestorType={x:Type ls:UIWidget}}}"/>
+                                        </b:EventTrigger>
+                                    </b:Interaction.Triggers>
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Width="192"/>
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                </ListBox>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Right: Slot selector + item grid -->
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Slot selector buttons -->
+                        <WrapPanel Grid.Row="0" Margin="0,0,0,8">
+                            <Button Content="All" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_All}"
+                                    Command="{Binding SelectSlot_All}"/>
+                            <Button Content="Helmet" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Helmet}"
+                                    Command="{Binding SelectSlot_Helmet}"/>
+                            <Button Content="Armor" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Chest}"
+                                    Command="{Binding SelectSlot_Chest}"/>
+                            <Button Content="Cloak" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Cloak}"
+                                    Command="{Binding SelectSlot_Cloak}"/>
+                            <Button Content="Main Hand" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_MainHand}"
+                                    Command="{Binding SelectSlot_MainHand}"/>
+                            <Button Content="Off Hand" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_OffHand}"
+                                    Command="{Binding SelectSlot_OffHand}"/>
+                            <Button Content="Ranged" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Ranged}"
+                                    Command="{Binding SelectSlot_Ranged}"/>
+                            <Button Content="Gloves" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Gloves}"
+                                    Command="{Binding SelectSlot_Gloves}"/>
+                            <Button Content="Boots" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Boots}"
+                                    Command="{Binding SelectSlot_Boots}"/>
+                            <Button Content="Amulet" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Amulet}"
+                                    Command="{Binding SelectSlot_Amulet}"/>
+                            <Button Content="Ring 1" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Ring}"
+                                    Command="{Binding SelectSlot_Ring}"/>
+                            <Button Content="Ring 2" Template="{StaticResource SlotChipTemplate}"
+                                    Tag="{Binding SlotActive_Ring2}"
+                                    Command="{Binding SelectSlot_Ring2}"/>
+                        </WrapPanel>
+
+                        <!-- Section label -->
+                        <TextBlock Grid.Row="1" Text="{Binding ActiveSlotLabel}"
+                                   Foreground="#FFc8b88a" FontSize="18" Margin="4,0,0,6"/>
+
+                        <!-- Filtered item grid -->
+                        <Border Grid.Row="2"
+                                ls:TooltipExtender.Owner="{Binding SelectedChar}">
+                            <ListBox ItemsSource="{Binding FilteredItems}"
+                                     ItemContainerStyle="{StaticResource ArmoryItemStyle}"
+                                     SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                            </ListBox>
+                        </Border>
+                    </Grid>
+                    <!-- ═══════════════════════════════════════════════════════ -->
+                    <!-- ── Column 2 : Filter Panel (slides out from right) ── -->
+                    <!-- ═══════════════════════════════════════════════════════ -->
+                    <Border Grid.Column="2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FilterPanelVisible}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
+                        <ls:LSNineSliceImage ImageSource="{StaticResource CharPanelBg}"
+                                             Slices="52" Width="340" Padding="20,16,20,16">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Margin="12,12,12,4">
+
+                                    <!-- ── Filter Header ──────────────────────── -->
+                                    <Grid Margin="0,0,0,8">
+                                        <TextBlock Text="Filters"
+                                                   Foreground="{StaticResource FilterSectionHeader}"
+                                                   FontSize="22" FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                        <Button Command="{Binding ClearAllFiltersCommand}"
+                                                Cursor="Hand"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,0,4,0">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="clearBg" CornerRadius="4"
+                                                            Background="Transparent"
+                                                            Padding="6,3">
+                                                        <TextBlock Text="Clear"
+                                                                   Foreground="{StaticResource FilterText}"
+                                                                   FontSize="16"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="clearBg"
+                                                                    Property="Background"
+                                                                    Value="{StaticResource FilterInactiveChip}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- ── Sort By ────────────────────────────── -->
+                                    <TextBlock Text="Sort By"
+                                               Foreground="{StaticResource FilterSectionHeader}"
+                                               FontSize="18" FontWeight="SemiBold"
+                                               Margin="0,4,0,4"/>
+                                    <WrapPanel Orientation="Horizontal">
+                                        <!-- Name -->
+                                        <Button Command="{Binding SortByNameCommand}"
+                                                Tag="{Binding SortState_Name}"
+                                                Cursor="Hand" Margin="2,2">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="sortBorder" CornerRadius="4" Padding="8,4"
+                                                            Background="Transparent">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="Name"
+                                                                       Foreground="{StaticResource FilterText}"
+                                                                       FontSize="18"/>
+                                                            <TextBlock x:Name="sortArrow" Text=""
+                                                                       Foreground="{StaticResource FilterSectionHeader}"
+                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource FilterInactiveChip}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Desc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25B2;"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Asc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25BC;"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                        <!-- Value -->
+                                        <Button Command="{Binding SortByValueCommand}"
+                                                Tag="{Binding SortState_Value}"
+                                                Cursor="Hand" Margin="2,2">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="sortBorder" CornerRadius="4" Padding="8,4"
+                                                            Background="Transparent">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="Value"
+                                                                       Foreground="{StaticResource FilterText}"
+                                                                       FontSize="18"/>
+                                                            <TextBlock x:Name="sortArrow" Text=""
+                                                                       Foreground="{StaticResource FilterSectionHeader}"
+                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource FilterInactiveChip}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Desc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25B2;"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Asc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25BC;"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                        <!-- Weight -->
+                                        <Button Command="{Binding SortByWeightCommand}"
+                                                Tag="{Binding SortState_Weight}"
+                                                Cursor="Hand" Margin="2,2">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="sortBorder" CornerRadius="4" Padding="8,4"
+                                                            Background="Transparent">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="Weight"
+                                                                       Foreground="{StaticResource FilterText}"
+                                                                       FontSize="18"/>
+                                                            <TextBlock x:Name="sortArrow" Text=""
+                                                                       Foreground="{StaticResource FilterSectionHeader}"
+                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource FilterInactiveChip}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Desc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25B2;"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Asc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25BC;"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                        <!-- Rarity -->
+                                        <Button Command="{Binding SortByRarityCommand}"
+                                                Tag="{Binding SortState_Rarity}"
+                                                Cursor="Hand" Margin="2,2">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="sortBorder" CornerRadius="4" Padding="8,4"
+                                                            Background="Transparent">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="Rarity"
+                                                                       Foreground="{StaticResource FilterText}"
+                                                                       FontSize="18"/>
+                                                            <TextBlock x:Name="sortArrow" Text=""
+                                                                       Foreground="{StaticResource FilterSectionHeader}"
+                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource FilterInactiveChip}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Desc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25B2;"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Tag" Value="Asc">
+                                                            <Setter TargetName="sortBorder" Property="Background" Value="{StaticResource SortActiveBg}"/>
+                                                            <Setter TargetName="sortArrow" Property="Text" Value="&#x25BC;"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </WrapPanel>
+
+                                    <!-- Separator -->
+                                    <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+
+                                    <!-- ── Rarity ─────────────────────────────── -->
+                                    <TextBlock Text="Rarity"
+                                               Foreground="{StaticResource FilterSectionHeader}"
+                                               FontSize="18" FontWeight="SemiBold"
+                                               Margin="0,4,0,4"/>
+                                    <StackPanel>
+                                        <Button Content="Common"
+                                                Template="{StaticResource FilterCheckboxTemplate}"
+                                                Command="{Binding ToggleRarity_Common}"
+                                                Tag="{Binding FilterRarity_Common}"/>
+                                        <Button Content="Uncommon"
+                                                Template="{StaticResource FilterCheckboxTemplate}"
+                                                Command="{Binding ToggleRarity_Uncommon}"
+                                                Tag="{Binding FilterRarity_Uncommon}"/>
+                                        <Button Content="Rare"
+                                                Template="{StaticResource FilterCheckboxTemplate}"
+                                                Command="{Binding ToggleRarity_Rare}"
+                                                Tag="{Binding FilterRarity_Rare}"/>
+                                        <Button Content="Very Rare"
+                                                Template="{StaticResource FilterCheckboxTemplate}"
+                                                Command="{Binding ToggleRarity_VeryRare}"
+                                                Tag="{Binding FilterRarity_VeryRare}"/>
+                                        <Button Content="Legendary"
+                                                Template="{StaticResource FilterCheckboxTemplate}"
+                                                Command="{Binding ToggleRarity_Legendary}"
+                                                Tag="{Binding FilterRarity_Legendary}"/>
+                                    </StackPanel>
+
+                                    <!-- Separator -->
+                                    <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+
+                                    <!-- ── Damage Dice (Weapons / All only) ───── -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FilterSection_DamageDice}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="Damage Dice"
+                                                   Foreground="{StaticResource FilterSectionHeader}"
+                                                   FontSize="18" FontWeight="SemiBold"
+                                                   Margin="0,4,0,4"/>
+                                        <WrapPanel Orientation="Horizontal">
+                                            <Button Content="1d4"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleDice_1d4}"
+                                                    Tag="{Binding FilterDice_1d4}"/>
+                                            <Button Content="1d6"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleDice_1d6}"
+                                                    Tag="{Binding FilterDice_1d6}"/>
+                                            <Button Content="1d8"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleDice_1d8}"
+                                                    Tag="{Binding FilterDice_1d8}"/>
+                                            <Button Content="1d10"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleDice_1d10}"
+                                                    Tag="{Binding FilterDice_1d10}"/>
+                                            <Button Content="1d12"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleDice_1d12}"
+                                                    Tag="{Binding FilterDice_1d12}"/>
+                                            <Button Content="2d6"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleDice_2d6}"
+                                                    Tag="{Binding FilterDice_2d6}"/>
+                                        </WrapPanel>
+                                        <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                    </StackPanel>
+
+                                    <!-- ── Damage Type (Weapons / All only) ───── -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FilterSection_DamageType}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="Damage Type"
+                                                   Foreground="{StaticResource FilterSectionHeader}"
+                                                   FontSize="18" FontWeight="SemiBold"
+                                                   Margin="0,4,0,4"/>
+                                        <WrapPanel Orientation="Horizontal">
+                                            <Button Content="Slashing" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Slashing}"
+                                                    Tag="{Binding FilterDmgType_Slashing}"/>
+                                            <Button Content="Piercing" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Piercing}"
+                                                    Tag="{Binding FilterDmgType_Piercing}"/>
+                                            <Button Content="Bludgeoning" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Bludgeoning}"
+                                                    Tag="{Binding FilterDmgType_Bludgeoning}"/>
+                                            <Button Content="Fire" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Fire}"
+                                                    Tag="{Binding FilterDmgType_Fire}"/>
+                                            <Button Content="Cold" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Cold}"
+                                                    Tag="{Binding FilterDmgType_Cold}"/>
+                                            <Button Content="Lightning" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Lightning}"
+                                                    Tag="{Binding FilterDmgType_Lightning}"/>
+                                            <Button Content="Thunder" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Thunder}"
+                                                    Tag="{Binding FilterDmgType_Thunder}"/>
+                                            <Button Content="Poison" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Poison}"
+                                                    Tag="{Binding FilterDmgType_Poison}"/>
+                                            <Button Content="Acid" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Acid}"
+                                                    Tag="{Binding FilterDmgType_Acid}"/>
+                                            <Button Content="Necrotic" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Necrotic}"
+                                                    Tag="{Binding FilterDmgType_Necrotic}"/>
+                                            <Button Content="Radiant" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Radiant}"
+                                                    Tag="{Binding FilterDmgType_Radiant}"/>
+                                            <Button Content="Force" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Force}"
+                                                    Tag="{Binding FilterDmgType_Force}"/>
+                                            <Button Content="Psychic" Width="138"
+                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Command="{Binding ToggleDmgType_Psychic}"
+                                                    Tag="{Binding FilterDmgType_Psychic}"/>
+                                        </WrapPanel>
+                                        <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                    </StackPanel>
+
+                                    <!-- ── AC Range (Armor / All only) ─────────── -->
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FilterSection_AC}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="AC Range"
+                                                   Foreground="{StaticResource FilterSectionHeader}"
+                                                   FontSize="18" FontWeight="SemiBold"
+                                                   Margin="0,4,0,4"/>
+                                        <WrapPanel Orientation="Horizontal">
+                                            <Button Content="10-12"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleAC_10to12}"
+                                                    Tag="{Binding FilterAC_10to12}"/>
+                                            <Button Content="13-15"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleAC_13to15}"
+                                                    Tag="{Binding FilterAC_13to15}"/>
+                                            <Button Content="16+"
+                                                    Template="{StaticResource FilterChipTemplate}"
+                                                    Command="{Binding ToggleAC_16plus}"
+                                                    Tag="{Binding FilterAC_16plus}"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+
+                                </StackPanel>
+                            </ScrollViewer>
+                        </ls:LSNineSliceImage>
+                    </Border>
+                </Grid>
+
+                <!-- Status bar -->
+                <Grid Grid.Row="2" Margin="0,8,0,0">
+                    <TextBlock Text="{Binding StatusText}"
+                               Foreground="#88FFFFFF" FontSize="18"
+                               VerticalAlignment="Center"/>
+                    <Button HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Command="{Binding RefreshCommand}" Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Image x:Name="refIcon"
+                                       Source="{StaticResource RefreshIconD}"
+                                       Width="32" Height="32"/>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="refIcon" Property="Source"
+                                                Value="{StaticResource RefreshIconH}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
+
+            </Grid>
+        </ls:LSNineSliceImage>
+    </Canvas>
+</ls:UIWidget>

@@ -1,0 +1,329 @@
+# BG3 Inventory Rework — Technical Workflow Reference
+
+## Overview
+
+A custom BG3 mod that adds a unified inventory panel showing all party members' items with **full native BG3 tooltips** (description, damage, AC, comparison panel, passives). This is the first known BG3 mod to achieve fully-functional native item tooltips in a custom UI panel.
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Server (Lua)                                            │
+│  BootstrapServer.lua → DataStore.lua → NetHandlers.lua   │
+│  Collects items via Ext.Entity from all party members    │
+│  Sends data to client via NetMessage                     │
+└────────────────────────┬─────────────────────────────────┘
+                         │ Net: InvRework_FullInventory
+┌────────────────────────▼─────────────────────────────────┐
+│  Client (Lua)                                            │
+│  BootstrapClient.lua → InventoryPanelVM.lua              │
+│  InventoryUI.lua → NetHandlers.lua                       │
+│                                                          │
+│  Grabs native VMInventorySlot objects from Noesis VM     │
+│  Populates XAML panel via custom ViewModel                │
+└────────────────────────┬─────────────────────────────────┘
+                         │ DataContext binding
+┌────────────────────────▼─────────────────────────────────┐
+│  XAML (Noesis 3.1.6 / WPF-like)                          │
+│  InventoryPanel.xaml                                     │
+│  ListBox + ListBoxItem ControlTemplate + LSEntityObject  │
+│  Direct LSTooltip (no ToolTip wrapper)                   │
+└──────────────────────────────────────────────────────────┘
+```
+
+## File Locations
+
+**Live mod (what the game loads):**
+```
+C:\Program Files (x86)\Steam\steamapps\common\Baldurs Gate 3\Data\Mods\BG3InventoryRework\
+├── GUI\Pages\
+│   ├── InventoryPanel.xaml                ← Unified inventory XAML
+│   └── ArmoryPanel.xaml                   ← Armory panel XAML
+├── ScriptExtender\Lua\Client\
+│   ├── InventoryPanelVM.lua               ← Inventory ViewModel + NativeSlots + INVRW_SlotWrapper type
+│   ├── ArmoryPanelVM.lua                  ← Armory ViewModel + equipped slots + equip action
+│   ├── InventoryUI.lua                    ← F11 toggle, panel registration
+│   └── NetHandlers.lua                    ← Client net message handlers
+├── ScriptExtender\Lua\Server\
+│   ├── InventoryCollector.lua             ← Item collection + equipped detection (Osi + inventory container)
+│   ├── ItemMover.lua                      ← Equip/move actions via Osi.Equip
+│   ├── DataStore.lua                      ← Data storage + query
+│   └── NetHandlers.lua                    ← Server net message handlers
+└── ScriptExtender\Lua\
+    ├── BootstrapClient.lua
+    └── BootstrapServer.lua
+```
+
+**Repo backup (sync manually after changes):**
+```
+C:\Users\BogdanMichon\Documents\BaldursGateInventory\BG3InventoryRework\
+```
+
+**Unpacked vanilla game XAML (read-only reference):**
+```
+C:\Users\BogdanMichon\Documents\BG3Unpacked\Game\Game\
+├── Mods\MainUI\GUI\Pages\Container.xaml   ← Native inventory (reference pattern)
+└── Public\Game\GUI\Library\
+    ├── DataTemplates.xaml                  ← BaseInvContainerItemStyle
+    ├── Tooltips.xaml                       ← ItemsTooltip, CompareTooltipTemplate
+    └── Theme\DefaultTheme.Styles.xaml      ← LSTooltipStyle, NoPinTooltipTemplate
+```
+
+## Key Breakthrough: Native Tooltips in Custom Panels
+
+### The Problem
+BG3's C++ engine lazily populates `VMTooltipItem` fields (TechnicalDescription, Damages, ArmorSection) only under specific conditions. Using `ItemsControl` + `DataTemplate` or wrapping `LSTooltip` in a `<ToolTip>` element gives partial data (name, icon, passives) but description/stats text stays empty.
+
+### The Solution
+Replicate the **exact native Container.xaml hierarchy**:
+
+```
+Border (ls:TooltipExtender.Owner = SelectedChar)
+  └── ListBox (ItemsSource = NativeSlots collection)
+       └── ListBoxItem (ControlTemplate)
+            └── ls:LSEntityObject
+                  ├── DataContext = "{Binding Object}"        ← VMItem
+                  ├── EntityRef = "{Binding EntityHandle}"    ← from VMItem
+                  └── ToolTip
+                       └── ls:LSTooltip (DIRECT, no wrapper)
+                            └── Content = "{Binding DataContext.Object,
+                                  RelativeSource=TemplatedParent}"
+```
+
+**Critical requirements:**
+1. Must use `ListBox` with `ItemContainerStyle` (NOT `ItemsControl` + `ItemTemplate`)
+2. `ListBoxItem` must have a `ControlTemplate` containing `ls:LSEntityObject`
+3. `LSTooltip` must be direct (NO `<ToolTip>` wrapper element)
+4. Must feed raw `VMInventorySlot` objects from the game's own Noesis VM
+5. Parent `Border` needs `ls:TooltipExtender.Owner` for character context
+
+### What Doesn't Work (tried and failed)
+- `ItemsControl` + `DataTemplate` → partial tooltip (no description/stats)
+- `<ToolTip Style="{x:Null}"><ls:LSTooltip/></ToolTip>` → partial tooltip
+- Bare `LSTooltip` as ToolTip value without ListBox context → empty border
+- `Template="{StaticResource NoPinTooltipTemplate}"` → empty border
+- Setting `TooltipExtender.Owner` / `TooltipExtender.Content` on LSTooltip → kills comparison panel
+
+## Data Flow: How NativeSlots Gets Populated
+
+### 1. Finding the Overlay Widget
+```lua
+local root = Ext.UI.GetRoot()
+local contentRoot = root:Find("ContentRoot")
+-- Scan children[0..30] for widget named "Overlay"
+local overlay = children[i]  -- where Name == "Overlay"
+local dc = overlay.DataContext
+local cp = dc.CurrentPlayer
+```
+
+### 2. Collecting VMInventorySlot Objects
+
+**Per character, `char.Inventories` contains:**
+- `Inventories[1]` = bag inventory (same as `char.Inventory`)
+- `Inventories[2]` = equipped items
+
+**Important:** Only use `Inventories` (plural), NOT `Inventory`. Using both causes duplicates since `Inventory == Inventories[1]`.
+
+### 3. Finding Party Characters
+
+**Primary path:** `dc.Data.PartyCharacters` (flat list)
+- Used by native `PartyPanel.xaml`
+- Contains all party member character VMs
+
+**Fallback path:** `dc.Data.Players[i].PartyGroups[j].Characters` (hierarchical)
+- Used by native `PlayerPortraits.xaml`
+- Grouped by player, then by party group
+
+**Deduplication:** Compare `tostring(char.Inventories)` pointers to skip SelectedCharacter (already added first).
+
+**Note:** `cp.Characters`, `cp.PartyCharacters`, `cp.Party` are all nil — these don't exist on CurrentPlayer. Party characters are only accessible via `dc.Data.PartyCharacters`.
+
+### 4. Other Noesis VM Paths (documented for reference)
+```
+dc.Data.Players                              ← LSPlayerList
+dc.Data.Players[i].PartyGroups[j].Characters ← per-group characters
+dc.Data.PartyCharacters                      ← flat party character list
+cp.SelectedCharacter                         ← currently selected char
+cp.SelectedCharacter.Inventory               ← same as Inventories[1]
+cp.SelectedCharacter.Inventories[1]          ← bag inventory
+cp.SelectedCharacter.Inventories[2]          ← equipped items
+cp.ContainerInventoryList                    ← empty unless native inventory is open
+cp.PartyInventory                            ← merged party inventory (untested)
+```
+
+## ViewModel Types
+
+```lua
+-- Panel-level ViewModel
+INVRW_InventoryPanelVM = {
+    PanelVisible   : Bool
+    StatusText     : String
+    Items          : Collection   -- INVRW_InventoryItem (legacy, used by ItemCardTemplate)
+    EquipSlots     : Collection   -- INVRW_EquipSlot
+    NativeSlots    : Collection   -- Raw VMInventorySlot objects (used by ListBox)
+    ToggleCommand  : Command
+    RefreshCommand : Command
+    SelectedChar   : Object       -- SelectedCharacter VM for TooltipExtender.Owner
+}
+
+-- Per-item ViewModel (legacy — kept for ItemCardTemplate fallback)
+INVRW_InventoryItem = {
+    Name, ItemType, Rarity, OwnerName, UUID, Icon : String
+    Weight, Value, Description, DamageStr, ArmorClass, SpecialEffects : String
+    IsEquipped, HasGameItem : Bool
+    GameItem, GameItemBrush, GameItemOwner, GameItemEntityHandle : Object
+}
+
+-- Equipment slot display
+INVRW_EquipSlot = {
+    SlotLabel : String
+    ItemName  : String
+    IsEmpty   : Bool
+}
+```
+
+## Noesis/SE Gotchas
+
+1. **Never cache Noesis proxies** — SE Lua proxies for Noesis objects expire between calls. Always re-find widgets and re-acquire DataContext fresh each time.
+
+2. **XAML namespaces must use `http://`** — Using `https://` in namespace URIs crashes the game.
+
+3. **pcall everything** — Noesis property access can throw at any time. Wrap every access in pcall.
+
+4. **`return` inside pcall doesn't exit parent function** — `pcall(function() ... return end)` only exits the anonymous function. Use a flag variable for control flow.
+
+5. **Inventory == Inventories[1]** — They're the same object. Only use `Inventories` to avoid duplicates.
+
+6. **ToolTip wrapper vs direct LSTooltip** — The `<ToolTip>` wrapper element creates a standard WPF popup that the game engine doesn't fully own. Direct `LSTooltip` as ToolTip value requires the ListBox/ListBoxItem/ControlTemplate context to work.
+
+7. **PlacementTarget bindings don't work in Noesis** — Unlike WPF, you can't bind to `PlacementTarget.(attached property)` to cross the tooltip popup boundary.
+
+## Keybinds
+
+- **F10** — Toggle inventory panel (also tries to bind VM on first press)
+- **F11** — Toggle inventory panel (via InventoryUI.lua)
+- **F9** — Debug probe (ShortDescription/Icon deep-dive)
+- **F12** — Toggle Armory panel
+- **T** — Pin/focus tooltip (native game binding via `UIPinTooltip` event) — allows hovering LSTag elements for nested tooltips
+
+## Testing Workflow
+
+1. Edit files in Steam path: `C:\Program Files (x86)\Steam\...\Data\Mods\BG3InventoryRework\`
+2. In-game: open SE console, run `reset` to reload Lua (or restart game for XAML changes)
+3. Press F10/F11 to open panel
+4. Hover items to test tooltips
+5. Check SE console for `[BG3InventoryRework]` log lines
+6. Copy working files to repo backup when stable
+
+## Tooltip Pinning
+
+To enable tooltip pinning (press T to focus, hover LSTag for nested tooltips):
+
+1. Set `CanBePinned="True"` on the `ls:LSTooltip` element
+2. Add `<ls:LSInputBinding Style="{DynamicResource PinTooltipBindingStyle}"/>` inside the panel's Grid — this bridges the `UIPinTooltip` input event to the engine's `PinTooltipCommand`
+
+The key mapping (T) is handled by the C++ engine, not XAML. The `LSInputBinding` just connects the event.
+
+## Armory Panel
+
+### Overview
+The Armory panel (F12) is a dedicated equipment management view with a **left panel** showing equipped slots and a **right panel** showing filterable items for each slot. Click an equipped slot on the left to filter the right side to compatible items, then click an item to equip it.
+
+### Files
+```
+GUI\Pages\ArmoryPanel.xaml              ← Armory XAML
+ScriptExtender\Lua\Client\ArmoryPanelVM.lua  ← Armory ViewModel
+ScriptExtender\Lua\Server\ItemMover.lua      ← Equip action (server-side Osi.Equip)
+ScriptExtender\Lua\Server\InventoryCollector.lua ← Item collection + equipped detection
+```
+
+### Equipped Detection (IMPORTANT)
+
+`InventoryMember.EquipmentSlot` is **NOT** an equipped indicator — it's a container slot index and is always >= 0 for all items. Using it marks every item as "equipped".
+
+**Correct approach (two methods combined):**
+1. `Osi.GetEquippedItem(charUUID, slotName)` — works for armor, vanity, and accessory slots but **returns nil for weapon slots** (MeleeMainHand, MeleeOffHand, RangedMainHand, RangedOffHand). Root cause unknown.
+2. Equipment inventory container — `InventoryOwner.Inventories[2]` is the equipment container for each character. All items in it are equipped. This catches the weapon slots that Osi misses.
+
+Both methods run in `InventoryCollector._markEquippedItems()`.
+
+### Equipped Slot Icons
+
+Equipped slot icons use `ItemIcon` string property (a `pack://` URI built from DataStore `item.Icon`) instead of `NativeObject.Icon` (which is a stale Noesis ImageBrush proxy). The `LSEntityObject` remains for native tooltip binding only — it has no visual children.
+
+```lua
+-- In ArmoryPanelVM.lua PopulateEquippedSlots():
+local iconName = equipped.Icon or "Item_Unknown"
+wrapper.ItemIcon = "pack://application:,,,/Core;component/Assets/ControllerUIIcons/items_png/" .. iconName .. ".DDS"
+```
+
+```xml
+<!-- In ArmoryPanel.xaml EquippedSlotStyle: -->
+<!-- LSEntityObject for tooltip only (no Rectangle inside) -->
+<ls:LSEntityObject x:Name="ItemEntity" ... />
+<!-- Separate Image for icon display -->
+<Image x:Name="ItemIcon" Source="{Binding ItemIcon}" ... />
+```
+
+### Equip Action
+
+- Client sends `InvRework_EquipItem` net message with `{itemUUID, targetCharUUID}`
+- Server calls `Osi.Equip(char, item, 1, 0, 0)` — 4th param `0` suppresses "Item Received" notification
+- Client uses `_equipBusy` flag (800ms lockout) to prevent rapid clicks from crashing the game
+
+### ViewModel Types
+
+```lua
+INVRW_SlotWrapper = {
+    NativeSlot   : Object   -- VMInventorySlot for native tooltip
+    NativeObject : Object   -- VMItem (the .Object of the slot)
+    NativeHandle : Object   -- EntityHandle for LSEntityObject.EntityRef
+    Rarity       : String   -- "Common", "Uncommon", "Rare", "VeryRare", "Legendary"
+    StackSize    : Int32
+    ShowStack    : Bool
+    SlotIcon     : String   -- Per-slot silhouette icon (empty) or EQ_blank (equipped)
+    HasItem      : Bool     -- Controls visibility of LSEntityObject + ItemIcon
+    ItemIcon     : String   -- pack:// URI for item icon (from DataStore)
+}
+
+INVRW_ArmoryPanelVM = {
+    PanelVisible, StatusText, SelectedChar, CharacterName,
+    ActiveSlotLabel, SelectedIndex, EquippedSlotIndex,
+    EquipSelectedCommand, EquippedSlotClickCommand,
+    ToggleCommand, RefreshCommand,
+    EquippedSlots : Collection,    -- INVRW_SlotWrapper (left panel)
+    FilteredItems : Collection,    -- INVRW_SlotWrapper (right panel)
+    SlotActive_* : String,         -- "True"/"False" per slot chip
+    SelectSlot_* : Command         -- Per slot chip
+}
+```
+
+### Equipment Slot IDs
+These are the `Equipable.Slot` values from the entity system, used as keys in both DataStore and the Armory filter:
+```
+Helmet, Breast, Cloak, MeleeMainHand, MeleeOffHand,
+RangedMainHand, RangedOffHand, Gloves, Boots,
+Amulet, Ring, Ring2, Underwear, VanityBody, VanityBoots
+```
+Note: Both Ring slots use `Slot="Ring"` in `Equipable.Slot` — the Ring vs Ring2 distinction comes from the equipment slot index, not the Equipable component.
+
+## Current State (2026-03-21)
+
+**Unified Inventory (F11):**
+- Full native tooltips working (description, damage, AC, passives, comparison panel)
+- Tooltip pinning works (T key) — nested LSTag tooltips accessible
+- All party members' items displayed (bag + equipped)
+- No duplicates
+- Equipment slots row showing slot labels + item names
+- Panel draggable, close button, refresh button
+- Status bar showing item count
+
+**Armory (F12):**
+- Equipped slots left panel with correct icons (DataStore-based, no Noesis proxy staleness)
+- Equipped detection working via Osi + inventory container fallback
+- Click-to-filter: clicking equipped slot filters right panel to compatible items
+- Click-to-equip: clicking item in right panel equips it (800ms lockout prevents crashes)
+- Native tooltips on both equipped slots and item grid
+- Character auto-detection via OwnerName vote counting
+- Rarity frames on both panels
+- No "Item Received" notification spam

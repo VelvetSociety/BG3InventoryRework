@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ls="clr-namespace:ls;assembly=Code">
+    <ResourceDictionary.MergedDictionaries>
+        <!-- Merging MainUI Tooltips brings in the implicit DataTemplate for ls:VMItem
+             and all converters/styles that LSTooltip needs to render item tooltips. -->
+        <ResourceDictionary Source="pack://application:,,,/MainUI;component/Library/Tooltips.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>
