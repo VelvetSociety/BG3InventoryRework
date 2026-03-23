@@ -40,7 +40,7 @@ Ext.RegisterNetListener("InvRework_EquipItem", function(channel, payload, userId
         return
     end
 
-    local success, message = ItemMover.EquipItem(data.itemUUID, data.targetCharUUID)
+    local success, message = ItemMover.EquipItem(data.itemUUID, data.targetCharUUID, data.targetSlot)
     Ext.ServerNet.BroadcastMessage("InvRework_ActionResult",
         Ext.Json.Stringify({ success = success, message = message }))
 

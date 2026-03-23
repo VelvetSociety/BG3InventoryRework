@@ -21,6 +21,15 @@ local _slotMap = {}
 -- Equip lock: prevents rapid equip clicks from crashing the game
 local _equipBusy = false
 
+-- Hover-tracking: MouseEnter on each item updates this immediately, so we always know
+-- which item the cursor is over without relying on ListBox SelectedIndex timing.
+local _hoveredIdx       = -1
+
+-- Double-click detection state (uses _hoveredIdx, not SelectedIndex).
+local _lastEquipIdx     = -1
+local _lastEquipTime    = 0
+local DOUBLE_CLICK_MS   = 600
+
 -- Character change detection
 local _lastCharPtr = nil
 
@@ -256,17 +265,18 @@ end
 --- id = DataStore item.Slot value from server's tostring(Equipable.Slot) AND FilterEngine key
 local EQ_ICON_BASE = "pack://application:,,,/Core;component/Assets/CharacterPanel/EquipSlots/"
 local EquipmentSlots = {
-    { id = "Helmet",         label = "Helmet",    vmSuffix = "Helmet",   icon = EQ_ICON_BASE .. "EQ_head.png" },
-    { id = "Breast",         label = "Armor",     vmSuffix = "Chest",    icon = EQ_ICON_BASE .. "EQ_chest.png" },
-    { id = "Cloak",          label = "Cloak",     vmSuffix = "Cloak",    icon = EQ_ICON_BASE .. "EQ_cloak.png" },
-    { id = "MeleeMainHand",  label = "Main Hand", vmSuffix = "MainHand", icon = EQ_ICON_BASE .. "EQ_melee_mainhand.png" },
-    { id = "MeleeOffHand",   label = "Off Hand",  vmSuffix = "OffHand",  icon = EQ_ICON_BASE .. "EQ_melee_offhand.png" },
-    { id = "RangedMainHand", label = "Ranged",    vmSuffix = "Ranged",   icon = EQ_ICON_BASE .. "EQ_ranged_mainhand.png" },
-    { id = "Gloves",         label = "Gloves",    vmSuffix = "Gloves",   icon = EQ_ICON_BASE .. "EQ_gloves.png" },
-    { id = "Boots",          label = "Boots",     vmSuffix = "Boots",    icon = EQ_ICON_BASE .. "EQ_feet.png" },
-    { id = "Amulet",         label = "Amulet",    vmSuffix = "Amulet",   icon = EQ_ICON_BASE .. "EQ_amulet.png" },
-    { id = "Ring",           label = "Ring 1",    vmSuffix = "Ring",     icon = EQ_ICON_BASE .. "EQ_ring01.png" },
-    { id = "Ring2",          label = "Ring 2",    vmSuffix = "Ring2",    icon = EQ_ICON_BASE .. "EQ_ring02.png" },
+    { id = "Helmet",         label = "Helmet",         vmSuffix = "Helmet",      icon = EQ_ICON_BASE .. "EQ_head.png" },
+    { id = "Breast",         label = "Armor",          vmSuffix = "Chest",       icon = EQ_ICON_BASE .. "EQ_chest.png" },
+    { id = "Gloves",         label = "Gloves",         vmSuffix = "Gloves",      icon = EQ_ICON_BASE .. "EQ_gloves.png" },
+    { id = "Boots",          label = "Boots",          vmSuffix = "Boots",       icon = EQ_ICON_BASE .. "EQ_feet.png" },
+    { id = "Cloak",          label = "Cloak",          vmSuffix = "Cloak",       icon = EQ_ICON_BASE .. "EQ_cloak.png" },
+    { id = "Amulet",         label = "Amulet",         vmSuffix = "Amulet",      icon = EQ_ICON_BASE .. "EQ_amulet.png" },
+    { id = "MeleeMainHand",  label = "Main Hand",      vmSuffix = "MainHand",    icon = EQ_ICON_BASE .. "EQ_melee_mainhand.png" },
+    { id = "MeleeOffHand",   label = "Off Hand",       vmSuffix = "OffHand",     icon = EQ_ICON_BASE .. "EQ_melee_offhand.png" },
+    { id = "RangedMainHand", label = "Ranged",         vmSuffix = "Ranged",      icon = EQ_ICON_BASE .. "EQ_ranged_mainhand.png" },
+    { id = "RangedOffHand",  label = "Ranged Off",     vmSuffix = "RangedOff",   icon = EQ_ICON_BASE .. "EQ_ranged_offhand.png" },
+    { id = "Ring",           label = "Ring 1",         vmSuffix = "Ring",        icon = EQ_ICON_BASE .. "EQ_ring01.png" },
+    { id = "Ring2",          label = "Ring 2",         vmSuffix = "Ring2",       icon = EQ_ICON_BASE .. "EQ_ring02.png" },
 }
 
 --- Register VM types with SE.
@@ -286,6 +296,7 @@ local function RegisterTypes()
         SelectedIndex  = { Type = "Int32",  Notify = true },
 
         EquipSelectedCommand      = { Type = "Command" },
+        HoverItemCommand          = { Type = "Command" },
         EquippedSlotClickCommand  = { Type = "Command" },
         ToggleCommand             = { Type = "Command" },
         RefreshCommand            = { Type = "Command" },
@@ -377,6 +388,22 @@ local function RegisterTypes()
         ToggleAC_10to12 = { Type = "Command" },
         ToggleAC_13to15 = { Type = "Command" },
         ToggleAC_16plus = { Type = "Command" },
+
+        -- Search
+        SearchQuery        = { Type = "String",  Notify = true },
+        HasSearchQuery     = { Type = "Bool",     Notify = true },
+        SearchFocusCommand = { Type = "Command" },
+        SearchCommand      = { Type = "Command" },
+        ClearSearchCommand = { Type = "Command" },
+
+        -- Slot picker popup
+        SlotPickerVisible       = { Type = "Bool",   Notify = true },
+        SlotPickerTitle         = { Type = "String", Notify = true },
+        SlotPickerOpt1          = { Type = "String", Notify = true },
+        SlotPickerOpt2          = { Type = "String", Notify = true },
+        SlotPickerOpt1Command   = { Type = "Command" },
+        SlotPickerOpt2Command   = { Type = "Command" },
+        SlotPickerCancelCommand = { Type = "Command" },
     }
 
     -- Add 11 slot select commands + 11 slot active states
@@ -767,9 +794,9 @@ function ArmoryPanelVM.PopulateEquippedSlots()
     vm.CharacterName = charName
 
     -- Find equipped items for THIS character only using OwnerName from DataStore.
-    -- This is more reliable than UUID matching because SelectedCharacter.Inventories
-    -- in Noesis contains items from ALL party members (shared inventory view).
-    -- Key: dsSlot value (server-side Equipable.Slot string)
+    -- Key: the PHYSICAL slot the item is in (EquippedInSlot when available, else Equipable.Slot).
+    -- Using EquippedInSlot is critical for dual-wield: both weapons have Slot="MeleeMainHand"
+    -- but EquippedInSlot distinguishes "MeleeMainHand" vs "MeleeOffHand".
     local equippedBySlot = {}
     for _, item in ipairs(allItems) do
         if item.Equipped and item.Slot and item.Slot ~= "" then
@@ -777,8 +804,39 @@ function ArmoryPanelVM.PopulateEquippedSlots()
             ownerName = ownerName:gsub("<LSTag[^>]*>([^<]*)</LSTag>", "%1")
             ownerName = ownerName:gsub("<[^>]+>", "")
             if ownerName == charName then
-                equippedBySlot[item.Slot] = item
+                local effectiveSlot = item.EquippedInSlot or item.Slot
+                equippedBySlot[effectiveSlot] = item
             end
+        end
+    end
+
+    -- Debug: log which slots have equipped items and their source
+    for slotId, item in pairs(equippedBySlot) do
+        _P("[BG3InventoryRework] equippedBySlot[" .. slotId .. "] = " .. (item.Name or "?")
+            .. " (Slot=" .. (item.Slot or "nil") .. ", EquippedInSlot=" .. (item.EquippedInSlot or "nil") .. ")")
+    end
+
+    -- Two-handed weapon: the offhand slot should show the same weapon icon faded
+    local offHandGhost = nil
+    if equippedBySlot["MeleeMainHand"] then
+        local mh = equippedBySlot["MeleeMainHand"]
+        _P("[BG3InventoryRework] Ghost check: MeleeMainHand=" .. (mh.Name or "?")
+            .. " TwoHanded=" .. tostring(mh.TwoHanded)
+            .. " MeleeOffHand occupied=" .. tostring(equippedBySlot["MeleeOffHand"] ~= nil))
+        if mh.TwoHanded and not equippedBySlot["MeleeOffHand"] then
+            offHandGhost = mh
+        end
+    end
+
+    -- Same ghost logic for ranged two-handed weapons (bows, heavy crossbows)
+    local rangedOffGhost = nil
+    if equippedBySlot["RangedMainHand"] then
+        local rh = equippedBySlot["RangedMainHand"]
+        _P("[BG3InventoryRework] Ghost check: RangedMainHand=" .. (rh.Name or "?")
+            .. " TwoHanded=" .. tostring(rh.TwoHanded)
+            .. " RangedOffHand occupied=" .. tostring(equippedBySlot["RangedOffHand"] ~= nil))
+        if rh.TwoHanded and not equippedBySlot["RangedOffHand"] then
+            rangedOffGhost = rh
         end
     end
 
@@ -788,26 +846,52 @@ function ArmoryPanelVM.PopulateEquippedSlots()
     for i, slot in ipairs(EquipmentSlots) do
         local wrapper = Ext.UI.Instantiate("INVRW_SlotWrapper")
         local equipped = equippedBySlot[slot.id]
+        local isGhost  = false
+
+        -- Two-handed weapon: show faded ghost in the offhand slot
+        if not equipped and slot.id == "MeleeOffHand" and offHandGhost then
+            equipped = offHandGhost
+            isGhost  = true
+        end
+        if not equipped and slot.id == "RangedOffHand" and rangedOffGhost then
+            equipped = rangedOffGhost
+            isGhost  = true
+        end
 
         if equipped and equipped.UUID and nativeVMItems[equipped.UUID] then
             local native = nativeVMItems[equipped.UUID]
-            pcall(function() wrapper.NativeSlot   = native.slot end)
-            pcall(function() wrapper.NativeObject = native.vmObject end)
-            pcall(function() wrapper.NativeHandle = native.entityHandle end)
-            wrapper.Rarity = equipped.Rarity or "Common"
+            if not isGhost then
+                -- Only bind native object for real equipped items (tooltip + interaction)
+                pcall(function() wrapper.NativeSlot   = native.slot end)
+                pcall(function() wrapper.NativeObject = native.vmObject end)
+                pcall(function() wrapper.NativeHandle = native.entityHandle end)
+            end
+            wrapper.Rarity    = equipped.Rarity or "Common"
             wrapper.StackSize = 1
             wrapper.ShowStack = false
-            wrapper.HasItem = true
-            wrapper.SlotIcon = EQ_BLANK  -- blank border, no slot art
+            wrapper.HasItem   = not isGhost   -- ghost has no tooltip/interaction
+            wrapper.IsGhost   = isGhost
+            wrapper.SlotIcon  = EQ_BLANK
+            local iconName = equipped.Icon or "Item_Unknown"
+            wrapper.ItemIcon = "pack://application:,,,/Core;component/Assets/ControllerUIIcons/items_png/" .. iconName .. ".DDS"
+        elseif isGhost and equipped then
+            -- Ghost item not found in native VM items — still show the faded icon
+            wrapper.Rarity    = "Common"
+            wrapper.StackSize = 1
+            wrapper.ShowStack = false
+            wrapper.HasItem   = false
+            wrapper.IsGhost   = true
+            wrapper.SlotIcon  = EQ_BLANK
             local iconName = equipped.Icon or "Item_Unknown"
             wrapper.ItemIcon = "pack://application:,,,/Core;component/Assets/ControllerUIIcons/items_png/" .. iconName .. ".DDS"
         else
             -- Empty slot: no native bindings, shows per-slot icon
-            wrapper.Rarity = "Common"
+            wrapper.Rarity    = "Common"
             wrapper.StackSize = 1
             wrapper.ShowStack = false
-            wrapper.HasItem = false
-            wrapper.SlotIcon = slot.icon or ""  -- helmet, armor, etc.
+            wrapper.HasItem   = false
+            wrapper.IsGhost   = false
+            wrapper.SlotIcon  = slot.icon or ""
         end
 
         vm.EquippedSlots[i] = wrapper
@@ -839,13 +923,22 @@ function ArmoryPanelVM.PopulateFilteredItems()
             end
         end
     else
-        filtered = FilterEngine.FilterMulti(allItems, { slots = { [selectedSlotId] = true } })
+        -- RangedOffHand shows the same item pool as RangedMainHand (hand crossbows etc.)
+        local filterSlot = selectedSlotId
+        if filterSlot == "RangedOffHand" then filterSlot = "RangedMainHand" end
+        filtered = FilterEngine.FilterMulti(allItems, { slots = { [filterSlot] = true } })
     end
 
     -- Step 2: Apply rarity filter via FilterEngine
     local hasRarities = next(armoryFilterState.rarities)
     if hasRarities then
         filtered = FilterEngine.FilterMulti(filtered, { rarities = armoryFilterState.rarities })
+    end
+
+    -- Step 2.5: Search filter
+    local searchQuery = ArmoryPanelVM._searchQuery or ""
+    if searchQuery ~= "" then
+        filtered = FilterEngine.FilterMulti(filtered, { search = searchQuery })
     end
 
     -- Step 3: Apply custom context-sensitive filters (second pass)
@@ -937,7 +1030,8 @@ function ArmoryPanelVM.PopulateFilteredItems()
         vm.FilteredItems[count] = wrapper
         _slotMap[count] = {
             uuid = entry.uuid,
-            name = (dsItem and dsItem.Name) or "Unknown"
+            name = (dsItem and dsItem.Name) or "Unknown",
+            slot = (dsItem and dsItem.Slot) or "",
         }
     end
 
@@ -953,6 +1047,103 @@ end
 function ArmoryPanelVM.Refresh()
     ArmoryPanelVM.PopulateEquippedSlots()
     ArmoryPanelVM.PopulateFilteredItems()
+end
+
+--- Decide whether to show slot picker popup or equip directly.
+--- Only shows the popup when there is genuine ambiguity (e.g. MainHand already
+--- has a one-handed weapon so the player might want OffHand instead).
+function ArmoryPanelVM.TriggerEquipOrPicker(info, charUUID)
+    local slot = info.slot or ""
+
+    -- Build a lightweight equipped-state snapshot from DataStore
+    local mainHandItem = nil
+    local rangedItem   = nil
+    local ring1Item    = nil
+
+    local DataStore = Mods.BG3InventoryRework.DataStore
+    if DataStore then
+        pcall(function()
+            local allItems = DataStore.GetAllItems()
+            local vm = GetVM()
+            local charName = vm and vm.CharacterName or ""
+
+            for _, item in ipairs(allItems) do
+                if item.Equipped then
+                    local ownerName = item.OwnerName or ""
+                    ownerName = ownerName:gsub("<LSTag[^>]*>([^<]*)</LSTag>", "%1")
+                    ownerName = ownerName:gsub("<[^>]+>", "")
+                    if ownerName == charName then
+                        local eSlot = item.EquippedInSlot or item.Slot
+                        if eSlot == "MeleeMainHand"  then mainHandItem = item end
+                        if eSlot == "RangedMainHand"  then rangedItem  = item end
+                        if eSlot == "Ring"             then ring1Item   = item end
+                    end
+                end
+            end
+        end)
+    end
+
+    if slot == "Ring" then
+        if ring1Item then
+            -- Ring1 occupied → ask which slot
+            ArmoryPanelVM.ShowSlotPicker(info, charUUID,
+                "Equip Ring To…", "Ring 1", "Ring", "Ring 2", "Ring2")
+        else
+            -- Ring1 empty → direct equip
+            ArmoryPanelVM.DoEquip(info.uuid, charUUID, "Ring")
+        end
+
+    elseif slot == "MeleeMainHand" then
+        if mainHandItem and not mainHandItem.TwoHanded then
+            -- MainHand has a one-handed weapon → ambiguous, show picker
+            ArmoryPanelVM.ShowSlotPicker(info, charUUID,
+                "Equip Weapon To…", "Main Hand", "MeleeMainHand", "Off Hand", "MeleeOffHand")
+        else
+            -- MainHand empty OR two-hander equipped → direct to MainHand
+            ArmoryPanelVM.DoEquip(info.uuid, charUUID, "MeleeMainHand")
+        end
+
+    elseif slot == "RangedMainHand" then
+        if rangedItem and not rangedItem.TwoHanded then
+            -- Ranged slot occupied with one-handed ranged → ask which slot
+            ArmoryPanelVM.ShowSlotPicker(info, charUUID,
+                "Equip Ranged To…", "Main Hand", "RangedMainHand", "Off Hand", "RangedOffHand")
+        else
+            -- Ranged slot empty OR two-handed ranged → direct equip
+            ArmoryPanelVM.DoEquip(info.uuid, charUUID, "RangedMainHand")
+        end
+
+    else
+        -- Direct equip (includes MeleeOffHand shields → always OffHand)
+        ArmoryPanelVM.DoEquip(info.uuid, charUUID, slot)
+    end
+end
+
+--- Send equip request to server with optional target slot.
+function ArmoryPanelVM.DoEquip(uuid, charUUID, targetSlot)
+    _equipBusy = true
+    Ext.Net.PostMessageToServer("InvRework_EquipItem",
+        Ext.Json.Stringify({ itemUUID = uuid, targetCharUUID = charUUID, targetSlot = targetSlot }))
+    pcall(function()
+        Ext.Timer.WaitFor(800, function()
+            Mods.BG3InventoryRework.RequestRefresh()
+            _equipBusy = false
+        end)
+    end)
+end
+
+--- Show the slot picker popup.
+function ArmoryPanelVM.ShowSlotPicker(info, charUUID, title, label1, slotId1, label2, slotId2)
+    ArmoryPanelVM._pickerInfo  = info
+    ArmoryPanelVM._pickerChar  = charUUID
+    ArmoryPanelVM._pickerSlot1 = slotId1
+    ArmoryPanelVM._pickerSlot2 = slotId2
+    local vm = GetVM()
+    if not vm then return end
+    vm.SlotPickerTitle   = title
+    vm.SlotPickerOpt1    = label1
+    vm.SlotPickerOpt2    = label2
+    vm.SlotPickerVisible = true
 end
 
 --- Try to bind by creating a fresh VM and setting as DataContext.
@@ -1004,6 +1195,10 @@ function ArmoryPanelVM.TryBind()
         SyncAllFilterProps()
         UpdateFilterSectionVisibility()
         UpdateArmoryFilterCount()
+        pcall(function()
+            local vm = GetVM()
+            if vm then vm.SlotPickerVisible = false end
+        end)
         ArmoryPanelVM.PopulateFilteredItems()
     end
 
@@ -1056,10 +1251,64 @@ function ArmoryPanelVM.TryBind()
                 local vm = GetVM()
                 if not vm then return end
                 ClearSlotActiveStates(vm)
-                vm["SlotActive_" .. slot.vmSuffix] = "True"
+                -- RangedOffHand highlights the "Ranged" chip (no separate chip for it)
+                local highlightSuffix = slot.vmSuffix
+                if highlightSuffix == "RangedOff" then highlightSuffix = "Ranged" end
+                vm["SlotActive_" .. highlightSuffix] = "True"
             end)
             OnSlotChanged()
             _P("[BG3InventoryRework] Armory: equipped slot click → " .. slot.label)
+        end)
+    end)
+
+    -- Wire search commands
+    ArmoryPanelVM._searchTyping = false
+    ArmoryPanelVM._searchBuffer = ArmoryPanelVM._searchBuffer or ""
+
+    local function syncHasSearch()
+        pcall(function()
+            local vm = GetVM()
+            if vm then vm.HasSearchQuery = (ArmoryPanelVM._searchBuffer or "") ~= "" end
+        end)
+    end
+
+    pcall(function()
+        freshVM.SearchFocusCommand:SetHandler(function()
+            ArmoryPanelVM._searchTyping = true
+            pcall(function()
+                local vm = GetVM()
+                if vm then vm.SearchQuery = (ArmoryPanelVM._searchBuffer or "") .. "|" end
+            end)
+            syncHasSearch()
+        end)
+    end)
+
+    pcall(function()
+        freshVM.SearchCommand:SetHandler(function()
+            pcall(function()
+                ArmoryPanelVM._searchTyping = false
+                local vm = GetVM()
+                if not vm then return end
+                local q = ArmoryPanelVM._searchBuffer or ""
+                vm.SearchQuery = q
+                ArmoryPanelVM._searchQuery = q
+                ArmoryPanelVM.PopulateFilteredItems()
+            end)
+        end)
+    end)
+
+    pcall(function()
+        freshVM.ClearSearchCommand:SetHandler(function()
+            pcall(function()
+                ArmoryPanelVM._searchTyping = false
+                ArmoryPanelVM._searchBuffer = ""
+                local vm = GetVM()
+                if not vm then return end
+                vm.SearchQuery = ""
+                vm.HasSearchQuery = false
+                ArmoryPanelVM._searchQuery = ""
+                ArmoryPanelVM.PopulateFilteredItems()
+            end)
         end)
     end)
 
@@ -1157,48 +1406,90 @@ function ArmoryPanelVM.TryBind()
         pcall(function() freshVM[f.cmd]:SetHandler(MakeArmoryToggleHandler(f.prop, armoryFilterState.acRanges, f.key)) end)
     end
 
-    -- Wire EquipSelectedCommand
+    -- Wire HoverItemCommand — fired by MouseEnter on each item cell.
+    -- This is a safety net: if the Style.Trigger (IsMouseOver → IsSelected) alone
+    -- doesn't propagate SelectedIndex fast enough, this explicitly reads it.
+    pcall(function()
+        freshVM.HoverItemCommand:SetHandler(function()
+            pcall(function()
+                local vm = GetVM()
+                if vm then _hoveredIdx = vm.SelectedIndex end
+            end)
+        end)
+    end)
+
+    -- Wire EquipSelectedCommand — double-click gate.
+    -- The ArmoryItemStyle sets IsSelected=True on IsMouseOver, so SelectedIndex is
+    -- updated before MouseLeftButtonDown fires.  We also have _hoveredIdx as a fallback.
     pcall(function()
         freshVM.EquipSelectedCommand:SetHandler(function()
-            -- Block rapid equip clicks to prevent crashes
-            if _equipBusy then
-                _P("[BG3InventoryRework] Armory equip: busy, ignoring click")
-                return
-            end
+            if _equipBusy then return end
 
-            local idx = nil
+            -- Read index from SelectedIndex (set by hover trigger) with _hoveredIdx fallback
+            local idx = -1
             pcall(function()
                 local vm = GetVM()
                 if vm then idx = vm.SelectedIndex end
             end)
-            if idx == nil or idx < 0 then
-                _P("[BG3InventoryRework] Armory equip: no item selected")
-                return
-            end
+            if idx < 0 then idx = _hoveredIdx end
+            if idx < 0 then return end
 
-            local info = _slotMap[idx + 1]  -- 0-based → 1-based
-            if not info or not info.uuid then
-                _P("[BG3InventoryRework] Armory equip: no UUID for index " .. tostring(idx))
-                return
+            local now = 0
+            pcall(function() now = Ext.Utils.MonotonicTime() end)
+
+            if idx ~= _lastEquipIdx or (now - _lastEquipTime) > DOUBLE_CLICK_MS then
+                _lastEquipIdx  = idx
+                _lastEquipTime = now
+                return   -- first click: just highlight, don't equip
             end
+            -- Second click on same item within threshold → equip
+            _lastEquipIdx  = -1
+            _lastEquipTime = 0
+
+            local info = _slotMap[idx + 1]
+            if not info or not info.uuid then return end
 
             local _, charUUID = getSelectedCharInfo()
-            if not charUUID then
-                _P("[BG3InventoryRework] Armory equip: no selected character")
-                return
-            end
+            if not charUUID then return end
 
-            _equipBusy = true
-            _P("[BG3InventoryRework] Armory equip: " .. (info.name or "?") .. " on char")
-            Ext.Net.PostMessageToServer("InvRework_EquipItem",
-                Ext.Json.Stringify({ itemUUID = info.uuid, targetCharUUID = charUUID }))
+            ArmoryPanelVM.TriggerEquipOrPicker(info, charUUID)
+        end)
+    end)
 
-            -- Schedule delayed refresh to catch equipment changes, then unlock
+    -- Wire SlotPickerOpt1Command
+    pcall(function()
+        freshVM.SlotPickerOpt1Command:SetHandler(function()
             pcall(function()
-                Ext.Timer.WaitFor(800, function()
-                    Mods.BG3InventoryRework.RequestRefresh()
-                    _equipBusy = false
-                end)
+                local vm = GetVM()
+                if vm then vm.SlotPickerVisible = false end
+                if ArmoryPanelVM._pickerInfo then
+                    ArmoryPanelVM.DoEquip(ArmoryPanelVM._pickerInfo.uuid,
+                        ArmoryPanelVM._pickerChar, ArmoryPanelVM._pickerSlot1)
+                end
+            end)
+        end)
+    end)
+
+    -- Wire SlotPickerOpt2Command
+    pcall(function()
+        freshVM.SlotPickerOpt2Command:SetHandler(function()
+            pcall(function()
+                local vm = GetVM()
+                if vm then vm.SlotPickerVisible = false end
+                if ArmoryPanelVM._pickerInfo then
+                    ArmoryPanelVM.DoEquip(ArmoryPanelVM._pickerInfo.uuid,
+                        ArmoryPanelVM._pickerChar, ArmoryPanelVM._pickerSlot2)
+                end
+            end)
+        end)
+    end)
+
+    -- Wire SlotPickerCancelCommand
+    pcall(function()
+        freshVM.SlotPickerCancelCommand:SetHandler(function()
+            pcall(function()
+                local vm = GetVM()
+                if vm then vm.SlotPickerVisible = false end
             end)
         end)
     end)
@@ -1206,6 +1497,8 @@ function ArmoryPanelVM.TryBind()
     -- Initial property values
     freshVM.PanelVisible = false
     freshVM.StatusText = "Select a slot to browse items"
+    freshVM.SearchQuery    = ArmoryPanelVM._searchQuery or ""
+    freshVM.HasSearchQuery = (ArmoryPanelVM._searchQuery or "") ~= ""
     freshVM.CharacterName = ""
     freshVM.ActiveSlotLabel = "Helmet"
     freshVM.SelectedIndex = -1
@@ -1213,6 +1506,10 @@ function ArmoryPanelVM.TryBind()
     freshVM.FilterPanelVisible = false
     freshVM.ActiveFilterCount = ""
     freshVM.SlotActive_All = "False"
+    freshVM.SlotPickerVisible = false
+    freshVM.SlotPickerTitle   = ""
+    freshVM.SlotPickerOpt1    = ""
+    freshVM.SlotPickerOpt2    = ""
 
     -- Filter section visibility defaults (Helmet = Armor category)
     freshVM.FilterSection_DamageDice = "False"
@@ -1384,8 +1681,80 @@ function ArmoryPanelVM.OnDataUpdated()
     ArmoryPanelVM.Refresh()
 end
 
+-- Armory search typing keyboard handler
+local _keyCharMap = {
+    A="a", B="b", C="c", D="d", E="e", F="f", G="g", H="h", I="i",
+    J="j", K="k", L="l", M="m", N="n", O="o", P="p", Q="q", R="r",
+    S="s", T="t", U="u", V="v", W="w", X="x", Y="y", Z="z",
+    D0="0", D1="1", D2="2", D3="3", D4="4", D5="5", D6="6", D7="7", D8="8", D9="9",
+    NUMPAD0="0", NUMPAD1="1", NUMPAD2="2", NUMPAD3="3", NUMPAD4="4",
+    NUMPAD5="5", NUMPAD6="6", NUMPAD7="7", NUMPAD8="8", NUMPAD9="9",
+    SPACE=" ", OEMMINUS="-", OEMPLUS="+", OEMPERIOD=".", OEMCOMMA=",",
+    OEM1=";", OEM2="/", OEM3="`", OEM4="[", OEM5="\\", OEM6="]", OEM7="'",
+    Space=" ", OemMinus="-", OemPlus="+", OemPeriod=".", OemComma=",",
+    NumPad0="0", NumPad1="1", NumPad2="2", NumPad3="3", NumPad4="4",
+    NumPad5="5", NumPad6="6", NumPad7="7", NumPad8="8", NumPad9="9",
+}
+
+local function consumeKeyEvent(e)
+    pcall(function() e:StopPropagation() end)
+    pcall(function() e:PreventAction() end)
+    pcall(function() e:Prevent() end)
+    pcall(function() e.Handled = true end)
+    pcall(function() e.Stopped = true end)
+end
+
+Ext.Events.KeyInput:Subscribe(function(e)
+    if not ArmoryPanelVM._searchTyping then return end
+    if tostring(e.Event) ~= "KeyDown" then return end
+
+    local key = e.Key
+    consumeKeyEvent(e)
+
+    local vm = nil
+    pcall(function() vm = GetVM() end)
+    if not vm then return end
+
+    local keyStr = tostring(key)
+
+    if keyStr == "RETURN" or keyStr == "ENTER" or keyStr == "KP_ENTER" then
+        ArmoryPanelVM._searchTyping = false
+        local q = ArmoryPanelVM._searchBuffer or ""
+        vm.SearchQuery = q
+        pcall(function() vm.HasSearchQuery = q ~= "" end)
+        ArmoryPanelVM._searchQuery = q
+        ArmoryPanelVM.PopulateFilteredItems()
+        return
+    end
+
+    if keyStr == "ESCAPE" or keyStr == "ESC" then
+        ArmoryPanelVM._searchTyping = false
+        local q = ArmoryPanelVM._searchQuery or ""
+        vm.SearchQuery = q
+        return
+    end
+
+    if keyStr == "BACK" or keyStr == "BACKSPACE" or keyStr == "DELETE" or keyStr == "DEL" then
+        local buf = ArmoryPanelVM._searchBuffer or ""
+        if #buf > 0 then
+            ArmoryPanelVM._searchBuffer = buf:sub(1, -2)
+        end
+        vm.SearchQuery = ArmoryPanelVM._searchBuffer .. "|"
+        pcall(function() vm.HasSearchQuery = ArmoryPanelVM._searchBuffer ~= "" end)
+        return
+    end
+
+    local ch = _keyCharMap[keyStr]
+    if ch then
+        ArmoryPanelVM._searchBuffer = (ArmoryPanelVM._searchBuffer or "") .. ch
+        vm.SearchQuery = ArmoryPanelVM._searchBuffer .. "|"
+        pcall(function() vm.HasSearchQuery = true end)
+    end
+end)
+
 -- F11 keybind (overrides SE console — our panel takes priority)
 Ext.Events.KeyInput:Subscribe(function(e)
+    if ArmoryPanelVM._searchTyping then return end
     -- Don't intercept if InventoryPanelVM search typing is active
     if Mods.BG3InventoryRework.InventoryPanelVM
        and Mods.BG3InventoryRework.InventoryPanelVM._searchTyping then

@@ -117,7 +117,7 @@
                                      MinHeight="48">
                     <TextBlock x:Name="label" Text="{TemplateBinding Content}"
                                Foreground="{StaticResource CtxTextColor}"
-                               FontSize="24" VerticalAlignment="Center"
+                               FontSize="26" VerticalAlignment="Center"
                                Margin="8,0,8,0"/>
                 </ls:LSNineSliceImage>
                 <ControlTemplate.Triggers>
@@ -302,7 +302,7 @@
                     <!-- Label -->
                     <TextBlock Grid.Column="1" Text="{TemplateBinding Content}"
                                Foreground="{StaticResource FilterText}"
-                               FontSize="20" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                               FontSize="24" VerticalAlignment="Center" Margin="4,0,0,0"/>
                 </Grid>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
@@ -334,7 +334,7 @@
                         Padding="10,4" Margin="2,2" Cursor="Hand">
                     <TextBlock Text="{TemplateBinding Content}"
                                Foreground="{StaticResource FilterText}"
-                               FontSize="18" HorizontalAlignment="Center"/>
+                               FontSize="22" HorizontalAlignment="Center"/>
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
@@ -393,7 +393,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- ── Row 0 : Header / drag handle ────────────────── -->
-                <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,0,12">
+                <Grid Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,10,0,12">
                     <TextBlock Text="Combined Inventory"
                                FontSize="32" FontWeight="Bold"
                                Foreground="#E6DBC2"
@@ -409,12 +409,8 @@
                                 <ControlTemplate TargetType="Button">
                                     <Grid Width="48" Height="48">
                                         <Image x:Name="filterBg"
-                                               Source="{StaticResource RoundBtnD}"
+                                               Source="pack://application:,,,/Core;component/Assets/CharacterPanel/ico_sort.png"
                                                Stretch="Uniform"/>
-                                        <TextBlock x:Name="filterIco" Text="&#x2630;"
-                                                   Foreground="White" FontSize="20"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
                                         <!-- Active filter count badge -->
                                         <Border x:Name="filterBadge"
                                                 Background="#CC8B0000" CornerRadius="8"
@@ -441,12 +437,10 @@
                                     </Grid>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="filterBg" Property="Source"
-                                                    Value="{StaticResource RoundBtnH}"/>
+                                            <Setter TargetName="filterBg" Property="Opacity" Value="0.7"/>
                                         </Trigger>
                                         <DataTrigger Binding="{Binding FilterPanelVisible}" Value="True">
-                                            <Setter TargetName="filterBg" Property="Source"
-                                                    Value="{StaticResource RoundBtnH}"/>
+                                            <Setter TargetName="filterBg" Property="Opacity" Value="0.7"/>
                                         </DataTrigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -459,7 +453,7 @@
                 </Grid>
 
                 <!-- ── Row 1 : Search bar (Lua-driven keyboard input) ──── -->
-                <Button Grid.Row="1" Grid.Column="0" Margin="0,0,0,8"
+                <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,8"
                         Command="{Binding SearchFocusCommand}"
                         Cursor="IBeam" HorizontalContentAlignment="Stretch">
                     <Button.Template>
@@ -548,7 +542,7 @@
                                         <!-- Item name header -->
                                         <TextBlock Text="{Binding SelectedItemName}"
                                                    Foreground="{StaticResource CtxHeaderColor}"
-                                                   FontSize="24" FontWeight="SemiBold"
+                                                   FontSize="26" FontWeight="SemiBold"
                                                    Margin="10,0,10,6"
                                                    TextTrimming="CharacterEllipsis"
                                                    MaxWidth="260"/>
@@ -573,7 +567,7 @@
                 </Border>
 
                 <!-- ── Row 3 : Status bar + refresh + resize grip ──── -->
-                <DockPanel Grid.Row="3" Grid.Column="0" Margin="12,4,12,4">
+                <DockPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Margin="12,8,12,6">
                     <!-- Resize controls — rightmost -->
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
                                 VerticalAlignment="Center" Margin="8,0,0,0">
@@ -630,7 +624,7 @@
                                     <Grid Width="36" Height="36">
                                         <Image x:Name="bg" Source="{StaticResource RoundBtnD}"
                                                Stretch="Uniform"/>
-                                        <TextBlock Text="-" Foreground="White" FontSize="22"
+                                        <TextBlock Text="-" Foreground="White" FontSize="26"
                                                    FontWeight="Bold"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"/>
@@ -651,7 +645,7 @@
                                     <Grid Width="36" Height="36">
                                         <Image x:Name="bg" Source="{StaticResource RoundBtnD}"
                                                Stretch="Uniform"/>
-                                        <TextBlock Text="+" Foreground="White" FontSize="22"
+                                        <TextBlock Text="+" Foreground="White" FontSize="26"
                                                    FontWeight="Bold"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"/>
@@ -689,14 +683,14 @@
 
                     <!-- Status text — fills remaining space -->
                     <TextBlock Text="{Binding StatusText}"
-                               FontSize="18" Foreground="#E6DBC2"
+                               FontSize="22" Foreground="#E6DBC2"
                                VerticalAlignment="Center"/>
                 </DockPanel>
 
                 <!-- ═══════════════════════════════════════════════════════ -->
                 <!-- ── Column 1 : Filter Panel (slides out from right) ── -->
                 <!-- ═══════════════════════════════════════════════════════ -->
-                <Border Grid.Column="1" Grid.RowSpan="4">
+                <Border Grid.Column="1" Grid.Row="2">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -708,8 +702,9 @@
                         </Style>
                     </Border.Style>
 
-                    <ls:LSNineSliceImage ImageSource="{StaticResource CharPanelBg}"
-                                         Slices="52" Width="360" Padding="24,16,24,16">
+                    <Border Background="#28c8b88a" CornerRadius="0"
+                            BorderBrush="#66c8b88a" BorderThickness="2.5,0,0,0"
+                            Width="490" Padding="24,20,10,20">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="8,12,8,4">
@@ -718,7 +713,7 @@
                                 <Grid Margin="0,0,0,8">
                                     <TextBlock Text="Filters"
                                                Foreground="{StaticResource FilterSectionHeader}"
-                                               FontSize="22" FontWeight="Bold"
+                                               FontSize="26" FontWeight="Bold"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"/>
                                     <Button Command="{Binding ClearAllFiltersCommand}"
@@ -732,7 +727,7 @@
                                                         Padding="6,3">
                                                     <TextBlock Text="Clear"
                                                                Foreground="{StaticResource FilterText}"
-                                                               FontSize="16"/>
+                                                               FontSize="20"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
@@ -749,7 +744,7 @@
                                 <!-- ── Sort By ────────────────────────────── -->
                                 <TextBlock Text="Sort By"
                                            Foreground="{StaticResource FilterSectionHeader}"
-                                           FontSize="18" FontWeight="SemiBold"
+                                           FontSize="22" FontWeight="SemiBold"
                                            Margin="0,4,0,4"/>
                                 <WrapPanel Orientation="Horizontal">
                                     <!-- Name -->
@@ -764,10 +759,10 @@
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="Name"
                                                                    Foreground="{StaticResource FilterText}"
-                                                                   FontSize="18"/>
+                                                                   FontSize="22"/>
                                                         <TextBlock x:Name="arrow" Text=""
                                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                                   FontSize="16" Margin="4,0,0,0"
+                                                                   FontSize="20" Margin="4,0,0,0"
                                                                    VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
@@ -802,10 +797,10 @@
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="Value"
                                                                    Foreground="{StaticResource FilterText}"
-                                                                   FontSize="18"/>
+                                                                   FontSize="22"/>
                                                         <TextBlock x:Name="arrow" Text=""
                                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                                   FontSize="16" Margin="4,0,0,0"
+                                                                   FontSize="20" Margin="4,0,0,0"
                                                                    VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
@@ -840,10 +835,10 @@
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="Weight"
                                                                    Foreground="{StaticResource FilterText}"
-                                                                   FontSize="18"/>
+                                                                   FontSize="22"/>
                                                         <TextBlock x:Name="arrow" Text=""
                                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                                   FontSize="16" Margin="4,0,0,0"
+                                                                   FontSize="20" Margin="4,0,0,0"
                                                                    VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
@@ -878,10 +873,10 @@
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="Rarity"
                                                                    Foreground="{StaticResource FilterText}"
-                                                                   FontSize="18"/>
+                                                                   FontSize="22"/>
                                                         <TextBlock x:Name="arrow" Text=""
                                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                                   FontSize="16" Margin="4,0,0,0"
+                                                                   FontSize="20" Margin="4,0,0,0"
                                                                    VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
@@ -907,82 +902,82 @@
                                 </WrapPanel>
 
                                 <!-- Separator -->
-                                <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                <Border Height="2.5" Background="#33FFFFFF" Margin="0,8"/>
 
                                 <!-- ── Item Type ──────────────────────────── -->
                                 <TextBlock Text="Item Type"
                                            Foreground="{StaticResource FilterSectionHeader}"
-                                           FontSize="18" FontWeight="SemiBold"
+                                           FontSize="22" FontWeight="SemiBold"
                                            Margin="0,4,0,4"/>
-                                <StackPanel>
-                                    <Button Content="Weapon"
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Content="Weapon" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleType_Weapon}"
                                             Tag="{Binding FilterType_Weapon}"/>
-                                    <Button Content="Armor"
+                                    <Button Content="Armor" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleType_Armor}"
                                             Tag="{Binding FilterType_Armor}"/>
-                                    <Button Content="Consumable"
+                                    <Button Content="Consumable" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleType_Consumable}"
                                             Tag="{Binding FilterType_Consumable}"/>
-                                    <Button Content="Scroll"
+                                    <Button Content="Scroll" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleType_Scroll}"
                                             Tag="{Binding FilterType_Scroll}"/>
-                                    <Button Content="Container"
+                                    <Button Content="Container" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleType_Container}"
                                             Tag="{Binding FilterType_Container}"/>
-                                    <Button Content="Book"
+                                    <Button Content="Book" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleType_Book}"
                                             Tag="{Binding FilterType_Book}"/>
-                                    <Button Content="Misc"
+                                    <Button Content="Misc" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleType_Misc}"
                                             Tag="{Binding FilterType_Misc}"/>
-                                </StackPanel>
+                                </WrapPanel>
 
                                 <!-- Separator -->
-                                <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                <Border Height="2.5" Background="#33FFFFFF" Margin="0,8"/>
 
                                 <!-- ── Rarity ─────────────────────────────── -->
                                 <TextBlock Text="Rarity"
                                            Foreground="{StaticResource FilterSectionHeader}"
-                                           FontSize="18" FontWeight="SemiBold"
+                                           FontSize="22" FontWeight="SemiBold"
                                            Margin="0,4,0,4"/>
-                                <StackPanel>
-                                    <Button Content="Common"
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Content="Common" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleRarity_Common}"
                                             Tag="{Binding FilterRarity_Common}"/>
-                                    <Button Content="Uncommon"
+                                    <Button Content="Uncommon" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleRarity_Uncommon}"
                                             Tag="{Binding FilterRarity_Uncommon}"/>
-                                    <Button Content="Rare"
+                                    <Button Content="Rare" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleRarity_Rare}"
                                             Tag="{Binding FilterRarity_Rare}"/>
-                                    <Button Content="Very Rare"
+                                    <Button Content="Very Rare" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleRarity_VeryRare}"
                                             Tag="{Binding FilterRarity_VeryRare}"/>
-                                    <Button Content="Legendary"
+                                    <Button Content="Legendary" Width="200"
                                             Template="{StaticResource FilterCheckboxTemplate}"
                                             Command="{Binding ToggleRarity_Legendary}"
                                             Tag="{Binding FilterRarity_Legendary}"/>
-                                </StackPanel>
+                                </WrapPanel>
 
                                 <!-- Separator -->
-                                <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                <Border Height="2.5" Background="#33FFFFFF" Margin="0,8"/>
 
                                 <!-- ── Equipment Slot ─────────────────────── -->
                                 <TextBlock Text="Equipment Slot"
                                            Foreground="{StaticResource FilterSectionHeader}"
-                                           FontSize="18" FontWeight="SemiBold"
+                                           FontSize="22" FontWeight="SemiBold"
                                            Margin="0,4,0,4"/>
                                 <WrapPanel Orientation="Horizontal">
                                     <Button Content="Helmet"
@@ -1029,7 +1024,7 @@
 
                             </StackPanel>
                         </ScrollViewer>
-                    </ls:LSNineSliceImage>
+                    </Border>
                 </Border>
 
             </Grid>

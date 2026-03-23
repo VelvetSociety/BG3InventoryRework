@@ -328,3 +328,97 @@ Note: Both Ring slots use `Slot="Ring"` in `Equipable.Slot` — the Ring vs Ring
 - Character auto-detection via OwnerName vote counting
 - Rarity frames on both panels
 - No "Item Received" notification spam
+
+## Dev Tools
+
+### Overview
+
+Three tools accelerate the mod iteration loop:
+
+| Tool | File | Purpose |
+|---|---|---|
+| XAML + Lua linter | `Tools/lint.py` | Catches crashes and anti-patterns before game launch |
+| SE console commands | `Client/DevCommands.lua` | In-game state inspection and VM reload |
+| Log watcher | `Tools/watch_log.py` | Real-time filtered tail of SE output |
+
+The pre-commit hook (`.git/hooks/pre-commit`) runs the linter automatically on every `git commit`.
+
+---
+
+### Tool 1 — XAML + Lua Linter (`Tools/lint.py`)
+
+Runs in < 1 second. Exit code 0 = clean; non-zero = errors found.
+
+```bash
+python Tools/lint.py                          # lint all Mod/ files
+python Tools/lint.py Mod/GUI/Pages/Foo.xaml   # lint specific file(s)
+```
+
+**XAML rules:**
+
+| Severity | Rule |
+|---|---|
+| ERROR | `https://` in xmlns URIs (crashes game — must be `http://`) |
+| ERROR | `<ToolTip>` wrapping `ls:LSTooltip` (wrong hierarchy) |
+| WARN | `ItemsControl` in same file as `ls:LSTooltip` (prefer ListBox) |
+| WARN | `DataTrigger` on `Tag` property (use `Trigger Property="Tag"`) |
+| WARN | Horizontal `StackPanel` with `Width="*"` Grid columns (use WrapPanel) |
+| WARN | Unknown `pack://` assembly names |
+
+**Lua rules:**
+
+| Severity | Rule |
+|---|---|
+| ERROR | `https://` in any string literal |
+| ERROR | Net message name mismatch (client sends with no server listener, or server broadcasts with no client listener) |
+| WARN | bare `return` inside `pcall(function()` |
+| WARN | `.Inventory` usage (not `.Inventories`) |
+
+---
+
+### Tool 2 — SE Console Commands (`Client/DevCommands.lua`)
+
+Type in the SE console (F11 dev console):
+
+| Command | What it does |
+|---|---|
+| `!invrw_reload` | Re-runs `Init + TryBind + OnDataUpdated` on both VMs — faster than full `reset` |
+| `!invrw_dump` | Prints DataStore summary: total items, owners, type breakdown, rarity breakdown |
+| `!invrw_open inventory` | Toggles the Inventory panel |
+| `!invrw_open armory` | Toggles the Armory panel |
+| `!invrw_status` | Prints binding state of both VMs + live VM property values |
+
+---
+
+### Tool 3 — Log Watcher (`Tools/watch_log.py`)
+
+Start once per session. Tails `gold.*.log` in BG3's `bin\` folder, filters to mod output, writes `Tools/last_session.log` (overwritten each run).
+
+```bash
+python Tools/watch_log.py                          # filter [BG3InventoryRework]
+python Tools/watch_log.py --filter "[Armory]"      # only armory subsystem
+python Tools/watch_log.py --filter "[Inventory]"   # only inventory subsystem
+python Tools/watch_log.py --filter ""              # all SE output
+```
+
+`Tools/last_session.log` is gitignored. Claude Code reads it to diagnose issues without copy-paste.
+
+---
+
+### Revised Iteration Workflows
+
+**Lua changes:**
+1. Edit `Mod/ScriptExtender/Lua/**/*.lua`
+2. `python Tools/watch_log.py` running in a terminal
+3. SE console: `reset` or `!invrw_reload` (VM-only changes)
+4. Check terminal / ask Claude (reads `last_session.log`)
+5. `!invrw_dump` / `!invrw_status` to inspect in-game state
+
+**XAML changes:**
+1. Edit `Mod/GUI/**/*.xaml`
+2. `python Tools/lint.py` — fix any errors *before* launching
+3. Launch BG3, check `last_session.log`, test, kill, repeat
+
+**Committing:**
+1. `git add ...` + `git commit` — pre-commit hook runs linter automatically
+2. Errors block the commit; warnings pass through

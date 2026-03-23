@@ -53,6 +53,7 @@ local function RegisterTypes()
         SlotIcon     = { Type = "String", Notify = true },
         HasItem      = { Type = "Bool",   Notify = true },
         ItemIcon     = { Type = "String", Notify = true },
+        IsGhost      = { Type = "Bool",   Notify = true },
     })
 
     Ext.UI.RegisterType("INVRW_InventoryPanelVM", {
@@ -1314,8 +1315,8 @@ function InventoryPanelVM.TryBind()
 
     -- ── Initial property values ───────────────────────────────────
     freshVM.PanelVisible = false
-    freshVM.PanelHeight = 920
-    freshVM.PanelWidth = 1300
+    freshVM.PanelHeight = 1128
+    freshVM.PanelWidth = 1492
     freshVM.StatusText = "Connecting..."
     freshVM.SelectedItemName = "Click an item to select it"
     freshVM.SelectedIndex = -1

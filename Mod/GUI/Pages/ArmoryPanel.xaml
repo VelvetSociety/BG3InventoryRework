@@ -58,6 +58,10 @@
                          UriSource="pack://application:,,,/Core;component/Assets/Shared_c/c_checkHolder_active_h.DDS"/>
             <BitmapImage x:Key="CheckMark"
                          UriSource="pack://application:,,,/Core;component/Assets/Shared_c/c_checkmark.DDS"/>
+            <BitmapImage x:Key="SearchInputD"
+                         UriSource="pack://application:,,,/Core;component/Assets/Lobby/input_directCode_d.png"/>
+            <BitmapImage x:Key="SearchInputH"
+                         UriSource="pack://application:,,,/Core;component/Assets/Lobby/input_directCode_h.png"/>
 
             <!-- Filter checkbox template -->
             <!-- Uses Trigger Property="Tag" (not DataTrigger) to react to binding-driven Tag changes in Noesis -->
@@ -74,7 +78,40 @@
                     </Grid>
                     <TextBlock Grid.Column="1" Text="{TemplateBinding Content}"
                                Foreground="{StaticResource FilterText}"
-                               FontSize="20" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                               FontSize="24" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="chkBg" Property="Source" Value="{StaticResource CheckOffH}"/>
+                    </Trigger>
+                    <Trigger Property="Tag" Value="True">
+                        <Setter TargetName="chkBg" Property="Source" Value="{StaticResource CheckOn}"/>
+                        <Setter TargetName="chkMark" Property="Visibility" Value="Visible"/>
+                    </Trigger>
+                    <MultiTrigger>
+                        <MultiTrigger.Conditions>
+                            <Condition Property="Tag" Value="True"/>
+                            <Condition Property="IsMouseOver" Value="True"/>
+                        </MultiTrigger.Conditions>
+                        <Setter TargetName="chkBg" Property="Source" Value="{StaticResource CheckOnH}"/>
+                    </MultiTrigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+
+            <!-- Filter checkbox + damage type icon template.
+                 Uses ContentPresenter so each button can supply icon+text as Content. -->
+            <ControlTemplate x:Key="FilterDmgTypeTemplate" TargetType="Button">
+                <Grid Margin="2,3" Cursor="Hand">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="28"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid Grid.Column="0" Width="24" Height="24" VerticalAlignment="Center">
+                        <Image x:Name="chkBg" Source="{StaticResource CheckOff}" Stretch="Uniform"/>
+                        <Image x:Name="chkMark" Source="{StaticResource CheckMark}" Stretch="Uniform"
+                               Visibility="Collapsed"/>
+                    </Grid>
+                    <ContentPresenter Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0"/>
                 </Grid>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
@@ -101,7 +138,7 @@
                         Padding="10,4" Margin="2,2" Cursor="Hand">
                     <TextBlock Text="{TemplateBinding Content}"
                                Foreground="{StaticResource FilterText}"
-                               FontSize="18" HorizontalAlignment="Center"/>
+                               FontSize="22" HorizontalAlignment="Center"/>
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
@@ -118,7 +155,8 @@
             <!-- Close button -->
             <ControlTemplate x:Key="CloseButtonTemplate" TargetType="Button">
                 <Grid>
-                    <Image x:Name="btnImg" Source="{StaticResource CloseBtnD}" Stretch="None"/>
+                    <Image x:Name="btnImg" Source="{StaticResource CloseBtnD}"
+                           Stretch="None"/>
                 </Grid>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
@@ -135,7 +173,7 @@
                         Padding="12,6" Margin="3,3" Cursor="Hand">
                     <TextBlock Text="{TemplateBinding Content}"
                                Foreground="#FFd4cfc0"
-                               FontSize="20" HorizontalAlignment="Center"/>
+                               FontSize="24" HorizontalAlignment="Center"/>
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
@@ -189,6 +227,11 @@
                                 <DataTrigger Binding="{Binding HasItem}" Value="True">
                                     <Setter TargetName="ItemEntity" Property="Visibility" Value="Visible"/>
                                     <Setter TargetName="ItemIcon" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <!-- Two-handed weapon ghost: show icon faded, no tooltip -->
+                                <DataTrigger Binding="{Binding IsGhost}" Value="True">
+                                    <Setter TargetName="ItemIcon" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="ItemIcon" Property="Opacity" Value="0.35"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Rarity}" Value="Uncommon">
                                     <Setter TargetName="RarityBack" Property="Source"
@@ -247,6 +290,11 @@
                                                    Background="Transparent"
                                                    ToolTipService.Placement="Right">
                                     <b:Interaction.Triggers>
+                                        <b:EventTrigger EventName="MouseEnter">
+                                            <b:InvokeCommandAction
+                                                Command="{Binding DataContext.HoverItemCommand,
+                                                    RelativeSource={RelativeSource AncestorType={x:Type ls:UIWidget}}}"/>
+                                        </b:EventTrigger>
                                         <b:EventTrigger EventName="MouseLeftButtonDown">
                                             <b:InvokeCommandAction
                                                 Command="{Binding DataContext.EquipSelectedCommand,
@@ -343,6 +391,12 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <!-- Select item on hover so SelectedIndex is always the hovered item -->
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="IsSelected" Value="True"/>
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
         </ResourceDictionary>
@@ -352,7 +406,7 @@
 
         <ls:LSNineSliceImage x:Name="PanelRoot"
                 Canvas.Left="340" Canvas.Top="60"
-                Width="2200" Height="1000"
+                Width="2200" Height="1128"
                 ImageSource="{StaticResource CharPanelBg}"
                 Slices="52"
                 Padding="24,20,24,16">
@@ -371,7 +425,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
-                <Grid Grid.Row="0" Margin="0,0,0,12">
+                <Grid Grid.Row="0" Margin="0,10,0,12">
                     <TextBlock Text="Armory"
                                FontSize="32" FontWeight="Bold"
                                Foreground="#E6DBC2"
@@ -386,12 +440,8 @@
                                 <ControlTemplate TargetType="Button">
                                     <Grid Width="48" Height="48">
                                         <Image x:Name="filterBg"
-                                               Source="{StaticResource RoundBtnD}"
+                                               Source="pack://application:,,,/Core;component/Assets/CharacterPanel/ico_sort.png"
                                                Stretch="Uniform"/>
-                                        <TextBlock x:Name="filterIco" Text="&#x2630;"
-                                                   Foreground="White" FontSize="20"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
                                         <!-- Active filter count badge -->
                                         <Border x:Name="filterBadge"
                                                 Background="#CC8B0000" CornerRadius="8"
@@ -418,12 +468,10 @@
                                     </Grid>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="filterBg" Property="Source"
-                                                    Value="{StaticResource RoundBtnH}"/>
+                                            <Setter TargetName="filterBg" Property="Opacity" Value="0.7"/>
                                         </Trigger>
                                         <DataTrigger Binding="{Binding FilterPanelVisible}" Value="True">
-                                            <Setter TargetName="filterBg" Property="Source"
-                                                    Value="{StaticResource RoundBtnH}"/>
+                                            <Setter TargetName="filterBg" Property="Opacity" Value="0.7"/>
                                         </DataTrigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -444,8 +492,8 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Left: Equipped slots (2-column icon grid) -->
-                    <Border Grid.Column="0" Background="#28c8b88a" CornerRadius="8"
-                            BorderBrush="#44c8b88a" BorderThickness="1.5"
+                    <Border Grid.Column="0" Background="#28c8b88a" CornerRadius="0"
+                            BorderBrush="#66c8b88a" BorderThickness="0,0,2.5,0"
                             Margin="0,0,12,0" Padding="10">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -454,8 +502,8 @@
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Text="{Binding CharacterName}"
-                                       Foreground="#FFd4cfc0" FontSize="22"
-                                       FontWeight="Bold" Margin="0,0,0,8"
+                                       Foreground="#FFd4cfc0" FontSize="26"
+                                       FontWeight="Bold" Margin="6,0,0,8"
                                        TextTrimming="CharacterEllipsis"/>
 
                             <Border Grid.Row="1"
@@ -487,9 +535,10 @@
                     <!-- Right: Slot selector + item grid -->
                     <Grid Grid.Column="1">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>  <!-- 0: slot chips -->
+                            <RowDefinition Height="Auto"/>  <!-- 1: search bar -->
+                            <RowDefinition Height="Auto"/>  <!-- 2: ActiveSlotLabel -->
+                            <RowDefinition Height="*"/>     <!-- 3: item ListBox -->
                         </Grid.RowDefinitions>
 
                         <!-- Slot selector buttons -->
@@ -524,20 +573,74 @@
                             <Button Content="Amulet" Template="{StaticResource SlotChipTemplate}"
                                     Tag="{Binding SlotActive_Amulet}"
                                     Command="{Binding SelectSlot_Amulet}"/>
-                            <Button Content="Ring 1" Template="{StaticResource SlotChipTemplate}"
+                            <Button Content="Ring" Template="{StaticResource SlotChipTemplate}"
                                     Tag="{Binding SlotActive_Ring}"
                                     Command="{Binding SelectSlot_Ring}"/>
-                            <Button Content="Ring 2" Template="{StaticResource SlotChipTemplate}"
-                                    Tag="{Binding SlotActive_Ring2}"
-                                    Command="{Binding SelectSlot_Ring2}"/>
                         </WrapPanel>
 
+                        <!-- Search bar -->
+                        <Button Grid.Row="1" Margin="0,0,0,8"
+                                Command="{Binding SearchFocusCommand}"
+                                Cursor="IBeam" HorizontalContentAlignment="Stretch">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <ls:LSNineSliceImage x:Name="InputBg"
+                                        ImageSource="{StaticResource SearchInputD}"
+                                        Slices="40,16,40,16" Padding="40,12,16,12"
+                                        MinHeight="48">
+                                        <DockPanel>
+                                            <Button x:Name="ClearBtn" DockPanel.Dock="Right"
+                                                    Command="{Binding ClearSearchCommand}"
+                                                    Width="32" Height="32"
+                                                    VerticalAlignment="Center"
+                                                    Margin="8,0,0,0"
+                                                    Visibility="Collapsed">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Grid>
+                                                            <Image x:Name="xBg"
+                                                                   Source="{StaticResource RoundBtnD}"
+                                                                   Stretch="Uniform"/>
+                                                            <TextBlock Text="X"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="White" FontSize="12"/>
+                                                        </Grid>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="xBg" Property="Source"
+                                                                        Value="{StaticResource RoundBtnH}"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <TextBlock Text="{Binding SearchQuery}"
+                                                       Foreground="{StaticResource FilterText}"
+                                                       FontSize="28" VerticalAlignment="Center"
+                                                       MinHeight="32"/>
+                                        </DockPanel>
+                                    </ls:LSNineSliceImage>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="InputBg" Property="ImageSource"
+                                                    Value="{StaticResource SearchInputH}"/>
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding HasSearchQuery}" Value="True">
+                                            <Setter TargetName="ClearBtn" Property="Visibility"
+                                                    Value="Visible"/>
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
                         <!-- Section label -->
-                        <TextBlock Grid.Row="1" Text="{Binding ActiveSlotLabel}"
-                                   Foreground="#FFc8b88a" FontSize="18" Margin="4,0,0,6"/>
+                        <TextBlock Grid.Row="2" Text="{Binding ActiveSlotLabel}"
+                                   Foreground="#FFc8b88a" FontSize="22" Margin="4,0,0,6"/>
 
                         <!-- Filtered item grid -->
-                        <Border Grid.Row="2"
+                        <Border Grid.Row="3"
                                 ls:TooltipExtender.Owner="{Binding SelectedChar}">
                             <ListBox ItemsSource="{Binding FilteredItems}"
                                      ItemContainerStyle="{StaticResource ArmoryItemStyle}"
@@ -569,8 +672,9 @@
                             </Style>
                         </Border.Style>
 
-                        <ls:LSNineSliceImage ImageSource="{StaticResource CharPanelBg}"
-                                             Slices="52" Width="340" Padding="20,16,20,16">
+                        <Border Background="#28c8b88a" CornerRadius="0"
+                                BorderBrush="#66c8b88a" BorderThickness="2.5,0,0,0"
+                                Width="490" Padding="24,20,10,20">
                             <ScrollViewer VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel Margin="12,12,12,4">
@@ -579,7 +683,7 @@
                                     <Grid Margin="0,0,0,8">
                                         <TextBlock Text="Filters"
                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                   FontSize="22" FontWeight="Bold"
+                                                   FontSize="26" FontWeight="Bold"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"/>
                                         <Button Command="{Binding ClearAllFiltersCommand}"
@@ -593,7 +697,7 @@
                                                             Padding="6,3">
                                                         <TextBlock Text="Clear"
                                                                    Foreground="{StaticResource FilterText}"
-                                                                   FontSize="16"/>
+                                                                   FontSize="20"/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
@@ -610,7 +714,7 @@
                                     <!-- ── Sort By ────────────────────────────── -->
                                     <TextBlock Text="Sort By"
                                                Foreground="{StaticResource FilterSectionHeader}"
-                                               FontSize="18" FontWeight="SemiBold"
+                                               FontSize="22" FontWeight="SemiBold"
                                                Margin="0,4,0,4"/>
                                     <WrapPanel Orientation="Horizontal">
                                         <!-- Name -->
@@ -624,10 +728,10 @@
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="Name"
                                                                        Foreground="{StaticResource FilterText}"
-                                                                       FontSize="18"/>
+                                                                       FontSize="22"/>
                                                             <TextBlock x:Name="sortArrow" Text=""
                                                                        Foreground="{StaticResource FilterSectionHeader}"
-                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       FontSize="20" Margin="4,0,0,0"
                                                                        VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
@@ -658,10 +762,10 @@
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="Value"
                                                                        Foreground="{StaticResource FilterText}"
-                                                                       FontSize="18"/>
+                                                                       FontSize="22"/>
                                                             <TextBlock x:Name="sortArrow" Text=""
                                                                        Foreground="{StaticResource FilterSectionHeader}"
-                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       FontSize="20" Margin="4,0,0,0"
                                                                        VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
@@ -692,10 +796,10 @@
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="Weight"
                                                                        Foreground="{StaticResource FilterText}"
-                                                                       FontSize="18"/>
+                                                                       FontSize="22"/>
                                                             <TextBlock x:Name="sortArrow" Text=""
                                                                        Foreground="{StaticResource FilterSectionHeader}"
-                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       FontSize="20" Margin="4,0,0,0"
                                                                        VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
@@ -726,10 +830,10 @@
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="Rarity"
                                                                        Foreground="{StaticResource FilterText}"
-                                                                       FontSize="18"/>
+                                                                       FontSize="22"/>
                                                             <TextBlock x:Name="sortArrow" Text=""
                                                                        Foreground="{StaticResource FilterSectionHeader}"
-                                                                       FontSize="16" Margin="4,0,0,0"
+                                                                       FontSize="20" Margin="4,0,0,0"
                                                                        VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
@@ -752,12 +856,12 @@
                                     </WrapPanel>
 
                                     <!-- Separator -->
-                                    <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                    <Border Height="2.5" Background="#33FFFFFF" Margin="0,8"/>
 
                                     <!-- ── Rarity ─────────────────────────────── -->
                                     <TextBlock Text="Rarity"
                                                Foreground="{StaticResource FilterSectionHeader}"
-                                               FontSize="18" FontWeight="SemiBold"
+                                               FontSize="22" FontWeight="SemiBold"
                                                Margin="0,4,0,4"/>
                                     <StackPanel>
                                         <Button Content="Common"
@@ -783,7 +887,7 @@
                                     </StackPanel>
 
                                     <!-- Separator -->
-                                    <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                    <Border Height="2.5" Background="#33FFFFFF" Margin="0,8"/>
 
                                     <!-- ── Damage Dice (Weapons / All only) ───── -->
                                     <StackPanel>
@@ -799,7 +903,7 @@
                                         </StackPanel.Style>
                                         <TextBlock Text="Damage Dice"
                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                   FontSize="18" FontWeight="SemiBold"
+                                                   FontSize="22" FontWeight="SemiBold"
                                                    Margin="0,4,0,4"/>
                                         <WrapPanel Orientation="Horizontal">
                                             <Button Content="1d4"
@@ -827,7 +931,7 @@
                                                     Command="{Binding ToggleDice_2d6}"
                                                     Tag="{Binding FilterDice_2d6}"/>
                                         </WrapPanel>
-                                        <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                        <Border Height="2.5" Background="#33FFFFFF" Margin="0,8"/>
                                     </StackPanel>
 
                                     <!-- ── Damage Type (Weapons / All only) ───── -->
@@ -844,63 +948,128 @@
                                         </StackPanel.Style>
                                         <TextBlock Text="Damage Type"
                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                   FontSize="18" FontWeight="SemiBold"
+                                                   FontSize="22" FontWeight="SemiBold"
                                                    Margin="0,4,0,4"/>
                                         <WrapPanel Orientation="Horizontal">
-                                            <Button Content="Slashing" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Slashing}"
-                                                    Tag="{Binding FilterDmgType_Slashing}"/>
-                                            <Button Content="Piercing" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Slashing}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_slashing.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Slashing" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Piercing}"
-                                                    Tag="{Binding FilterDmgType_Piercing}"/>
-                                            <Button Content="Bludgeoning" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Piercing}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_piercing.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Piercing" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Bludgeoning}"
-                                                    Tag="{Binding FilterDmgType_Bludgeoning}"/>
-                                            <Button Content="Fire" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Bludgeoning}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_blunt.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Bludgeoning" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Fire}"
-                                                    Tag="{Binding FilterDmgType_Fire}"/>
-                                            <Button Content="Cold" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Fire}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_fire.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Fire" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Cold}"
-                                                    Tag="{Binding FilterDmgType_Cold}"/>
-                                            <Button Content="Lightning" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Cold}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_cold.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Cold" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Lightning}"
-                                                    Tag="{Binding FilterDmgType_Lightning}"/>
-                                            <Button Content="Thunder" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Lightning}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_lightning.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Lightning" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Thunder}"
-                                                    Tag="{Binding FilterDmgType_Thunder}"/>
-                                            <Button Content="Poison" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Thunder}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_thunder.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Thunder" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Poison}"
-                                                    Tag="{Binding FilterDmgType_Poison}"/>
-                                            <Button Content="Acid" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Poison}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_poison.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Poison" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Acid}"
-                                                    Tag="{Binding FilterDmgType_Acid}"/>
-                                            <Button Content="Necrotic" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Acid}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_acid.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Acid" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Necrotic}"
-                                                    Tag="{Binding FilterDmgType_Necrotic}"/>
-                                            <Button Content="Radiant" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Necrotic}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_necrotic.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Necrotic" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Radiant}"
-                                                    Tag="{Binding FilterDmgType_Radiant}"/>
-                                            <Button Content="Force" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Radiant}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_radiant.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Radiant" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Force}"
-                                                    Tag="{Binding FilterDmgType_Force}"/>
-                                            <Button Content="Psychic" Width="138"
-                                                    Template="{StaticResource FilterCheckboxTemplate}"
+                                                    Tag="{Binding FilterDmgType_Force}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_force.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Force" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Width="210" Template="{StaticResource FilterDmgTypeTemplate}"
                                                     Command="{Binding ToggleDmgType_Psychic}"
-                                                    Tag="{Binding FilterDmgType_Psychic}"/>
+                                                    Tag="{Binding FilterDmgType_Psychic}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Image Source="pack://application:,,,/Core;component/Assets/Shared/ico_dmg_psychic.png"
+                                                           Width="24" Height="24" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Psychic" Foreground="{StaticResource FilterText}" FontSize="24" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
                                         </WrapPanel>
-                                        <Border Height="1" Background="#33FFFFFF" Margin="0,8"/>
+                                        <Border Height="2.5" Background="#33FFFFFF" Margin="0,8"/>
                                     </StackPanel>
 
                                     <!-- ── AC Range (Armor / All only) ─────────── -->
@@ -917,7 +1086,7 @@
                                         </StackPanel.Style>
                                         <TextBlock Text="AC Range"
                                                    Foreground="{StaticResource FilterSectionHeader}"
-                                                   FontSize="18" FontWeight="SemiBold"
+                                                   FontSize="22" FontWeight="SemiBold"
                                                    Margin="0,4,0,4"/>
                                         <WrapPanel Orientation="Horizontal">
                                             <Button Content="10-12"
@@ -937,14 +1106,109 @@
 
                                 </StackPanel>
                             </ScrollViewer>
-                        </ls:LSNineSliceImage>
+                        </Border>
                     </Border>
                 </Grid>
 
+                <!-- Slot picker popup overlay — visible only when SlotPickerVisible = true -->
+                <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                      Background="#88000000">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SlotPickerVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+
+                    <!-- Centered popup card -->
+                    <ls:LSNineSliceImage HorizontalAlignment="Center" VerticalAlignment="Center"
+                                         ImageSource="{StaticResource CharPanelBg}"
+                                         Slices="52" Padding="32,24">
+                        <StackPanel MinWidth="280">
+                            <!-- Title -->
+                            <TextBlock Text="{Binding SlotPickerTitle}"
+                                       Foreground="{StaticResource FilterSectionHeader}"
+                                       FontSize="26" FontWeight="Bold"
+                                       HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <!-- Option 1 -->
+                            <Button Content="{Binding SlotPickerOpt1}"
+                                    Command="{Binding SlotPickerOpt1Command}"
+                                    Cursor="Hand" Margin="0,0,0,8">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="optBorder1" CornerRadius="6"
+                                                Background="{StaticResource SlotChipInactive}"
+                                                BorderBrush="{StaticResource SlotChipBorder}"
+                                                BorderThickness="1" Padding="16,10">
+                                            <TextBlock Text="{TemplateBinding Content}"
+                                                       Foreground="{StaticResource FilterText}"
+                                                       FontSize="26" HorizontalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="optBorder1" Property="Background"
+                                                        Value="{StaticResource SlotChipActive}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <!-- Option 2 -->
+                            <Button Content="{Binding SlotPickerOpt2}"
+                                    Command="{Binding SlotPickerOpt2Command}"
+                                    Cursor="Hand" Margin="0,0,0,16">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="optBorder2" CornerRadius="6"
+                                                Background="{StaticResource SlotChipInactive}"
+                                                BorderBrush="{StaticResource SlotChipBorder}"
+                                                BorderThickness="1" Padding="16,10">
+                                            <TextBlock Text="{TemplateBinding Content}"
+                                                       Foreground="{StaticResource FilterText}"
+                                                       FontSize="26" HorizontalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="optBorder2" Property="Background"
+                                                        Value="{StaticResource SlotChipActive}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <!-- Cancel -->
+                            <Button Content="Cancel"
+                                    Command="{Binding SlotPickerCancelCommand}"
+                                    Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="cancelBorder" CornerRadius="6"
+                                                Background="Transparent" Padding="16,6">
+                                            <TextBlock Text="Cancel"
+                                                       Foreground="#FF888888"
+                                                       FontSize="22" HorizontalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="cancelBorder" Property="Background"
+                                                        Value="#22FFFFFF"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </StackPanel>
+                    </ls:LSNineSliceImage>
+                </Grid>
+
                 <!-- Status bar -->
-                <Grid Grid.Row="2" Margin="0,8,0,0">
+                <Grid Grid.Row="2" Margin="10,8,10,6">
                     <TextBlock Text="{Binding StatusText}"
-                               Foreground="#88FFFFFF" FontSize="18"
+                               Foreground="#88FFFFFF" FontSize="22"
                                VerticalAlignment="Center"/>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Center"
                             Command="{Binding RefreshCommand}" Cursor="Hand">

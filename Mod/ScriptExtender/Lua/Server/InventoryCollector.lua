@@ -123,13 +123,33 @@ function InventoryCollector._markEquippedItems(allItems, partyMembers)
                 local equippedUUID = Osi.GetEquippedItem(charUUID, slotName)
                 if equippedUUID and byUUID[equippedUUID] then
                     byUUID[equippedUUID].Equipped = true
+                    -- Record the physical slot this item is actually equipped in
+                    byUUID[equippedUUID].EquippedInSlot = slotName
                 end
             end)
         end
     end
 
-    -- Method 2: Equipment inventory container (catches weapon slots that Osi misses)
+    -- Method 2: Equipment inventory container (catches weapon slots that Osi misses).
     -- The 2nd inventory (index 2) on each character is the equipment container.
+    -- Slot indices in the container map to equipment slots by position.
+    local containerSlotMap = {
+        [0]  = "Helmet",
+        [1]  = "Breast",
+        [2]  = "Cloak",
+        [3]  = "MeleeMainHand",
+        [4]  = "MeleeOffHand",
+        [5]  = "RangedMainHand",
+        [6]  = "RangedOffHand",
+        [7]  = "Gloves",
+        [8]  = "Amulet",
+        [9]  = "Ring",
+        [10] = "Ring2",
+        [11] = "Boots",
+        [12] = "Underwear",
+        [13] = "VanityBody",
+        [14] = "VanityBoots",
+    }
     for _, tuple in pairs(partyMembers) do
         local charUUID = tuple[1]
         pcall(function()
@@ -144,15 +164,89 @@ function InventoryCollector._markEquippedItems(allItems, partyMembers)
                     if not inv or not inv.InventoryContainer then return end
                     local container = inv.InventoryContainer
                     if not container or not container.Items then return end
-                    for _, slotData in pairs(container.Items) do
+                    for slotIdx, slotData in pairs(container.Items) do
                         pcall(function()
                             local itemEntity = slotData.Item or slotData
                             if not itemEntity or not itemEntity.Uuid then return end
                             local uuid = itemEntity.Uuid.EntityUuid
                             if uuid and byUUID[uuid] then
                                 byUUID[uuid].Equipped = true
+                                -- Set EquippedInSlot from container index if not already set
+                                if not byUUID[uuid].EquippedInSlot then
+                                    local slotName = containerSlotMap[slotIdx]
+                                    if slotName then
+                                        byUUID[uuid].EquippedInSlot = slotName
+                                    end
+                                    _P("[BG3InventoryRework] Method2 equip slot: idx=" .. tostring(slotIdx)
+                                        .. " → " .. tostring(slotName) .. " item=" .. (byUUID[uuid].Name or "?"))
+                                end
                             end
                         end)
+                    end
+                end)
+            end
+        end)
+    end
+
+    -- Method 3: Equipment.Slots component — determines the PHYSICAL slot each weapon/ring
+    -- is equipped in. Osi.GetEquippedItem returns nil for these slots; this is the authoritative
+    -- source for MainHand, OffHand, Ranged, Ring, Ring2.
+    local equipEnumToSlotName = {
+        MainHand = "MeleeMainHand",
+        OffHand  = "MeleeOffHand",
+        Ranged   = "RangedMainHand",
+        Ring     = "Ring",
+        Ring2    = "Ring2",
+    }
+    for _, tuple in pairs(partyMembers) do
+        local charUUID = tuple[1]
+        pcall(function()
+            local charEntity = Ext.Entity.Get(charUUID)
+            if not charEntity or not charEntity.Equipment then return end
+            local slots = charEntity.Equipment.Slots
+            if not slots then return end
+            for enumName, slotId in pairs(equipEnumToSlotName) do
+                pcall(function()
+                    local slotEnum = Ext.Enums.EquipmentSlot[enumName]
+                    if not slotEnum then return end
+                    local handle = slots[slotEnum]
+                    if not handle then return end
+
+                    -- The handle may be an entity reference, not a UUID string.
+                    -- Try multiple approaches to resolve the UUID.
+                    local uuid = nil
+
+                    -- Approach A: handle might be an entity with Uuid component
+                    pcall(function()
+                        if handle.Uuid and handle.Uuid.EntityUuid then
+                            uuid = handle.Uuid.EntityUuid
+                        end
+                    end)
+
+                    -- Approach B: handle might resolve via Ext.Entity.Get
+                    if not uuid then
+                        pcall(function()
+                            local entity = Ext.Entity.Get(handle)
+                            if entity and entity.Uuid then
+                                uuid = entity.Uuid.EntityUuid
+                            end
+                        end)
+                    end
+
+                    -- Approach C: tostring might give a UUID directly
+                    if not uuid then
+                        pcall(function()
+                            local s = tostring(handle)
+                            -- Check if it looks like a UUID (contains dashes)
+                            if s and s:match("%x+%-%x+%-%x+%-%x+%-%x+") then
+                                uuid = s
+                            end
+                        end)
+                    end
+
+                    if uuid and uuid ~= "" and uuid ~= "00000000-0000-0000-0000-000000000000" and byUUID[uuid] then
+                        byUUID[uuid].Equipped = true
+                        byUUID[uuid].EquippedInSlot = slotId
                     end
                 end)
             end
@@ -345,6 +439,26 @@ function InventoryCollector._extractItemData(itemEntity, ownerUUID, ownerName)
 
                     -- BoostsOnEquipMainHand confirmed in DIAG V3 but contains spell unlock strings,
                     -- not human-readable text — skip for now
+
+                    -- Two-handed weapon detection via "Weapon Properties" table
+                    if item.Type == "Weapon" then
+                        pcall(function()
+                            local wpProps = stat["Weapon Properties"]
+                            if wpProps and type(wpProps) == "table" then
+                                for _, v in ipairs(wpProps) do
+                                    if tostring(v):lower():find("twohanded") then
+                                        item.TwoHanded = true
+                                        break
+                                    end
+                                end
+                            elseif wpProps then
+                                -- Fallback: if it's a string for some reason
+                                if tostring(wpProps):lower():find("twohanded") then
+                                    item.TwoHanded = true
+                                end
+                            end
+                        end)
+                    end
                 end
             end
         end)

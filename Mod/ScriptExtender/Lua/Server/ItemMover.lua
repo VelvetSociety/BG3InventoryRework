@@ -39,11 +39,12 @@ function ItemMover.MoveItem(itemUUID, targetCharUUID)
 end
 
 --- Equip an item on a target character.
--- Osi.Equip will move the item automatically if needed.
+-- If the item is on another character or in another inventory, it is moved first.
 -- @param itemUUID string
 -- @param targetCharUUID string
+-- @param targetSlot string|nil  optional slot ID to vacate before equipping
 -- @return success boolean, message string
-function ItemMover.EquipItem(itemUUID, targetCharUUID)
+function ItemMover.EquipItem(itemUUID, targetCharUUID, targetSlot)
     if not itemUUID or not targetCharUUID then
         return false, "Missing item or target UUID"
     end
@@ -54,16 +55,125 @@ function ItemMover.EquipItem(itemUUID, targetCharUUID)
         return false, "Item not found: " .. itemUUID
     end
 
-    -- Osi.Equip(character, item, addToMainInventoryOnFail, showNotification, clearOriginalOwner)
-    local ok, err = pcall(function()
-        Osi.Equip(targetCharUUID, itemUUID, 1, 0, 0)
-    end)
+    -- Container slot indices for fallback when Osi.GetEquippedItem returns nil (weapons)
+    local containerIdxMap = {
+        MeleeMainHand  = 3,
+        MeleeOffHand   = 4,
+        RangedMainHand = 5,
+        RangedOffHand  = 6,
+        Ring           = 9,
+        Ring2          = 10,
+    }
 
-    if not ok then
-        return false, "Equip failed: " .. tostring(err)
+    -- Helper: get UUID of the item currently in a given equipment slot.
+    -- Osi.GetEquippedItem works for armor/shields; container index fallback for weapons.
+    local function getSlotOccupant(osiSlotName)
+        local occupantUUID = nil
+        pcall(function()
+            occupantUUID = Osi.GetEquippedItem(targetCharUUID, osiSlotName)
+        end)
+        if not occupantUUID then
+            pcall(function()
+                local cIdx = containerIdxMap[osiSlotName]
+                if not cIdx then return end
+                local charEntity = Ext.Entity.Get(targetCharUUID)
+                if not charEntity or not charEntity.InventoryOwner then return end
+                local inventories = charEntity.InventoryOwner.Inventories
+                if not inventories then return end
+                for invIdx = 2, #inventories do
+                    pcall(function()
+                        local inv = inventories[invIdx]
+                        if not inv or not inv.InventoryContainer then return end
+                        local items = inv.InventoryContainer.Items
+                        if not items then return end
+                        local slotData = items[cIdx]
+                        if not slotData then return end
+                        local ie = slotData.Item or slotData
+                        if ie and ie.Uuid then occupantUUID = ie.Uuid.EntityUuid end
+                    end)
+                end
+            end)
+        end
+        return occupantUUID
     end
 
-    return true, "Item equipped successfully"
+    -- Helper: move a slot's occupant to inventory
+    local function vacateSlot(osiSlotName)
+        local uid = getSlotOccupant(osiSlotName)
+        if uid and uid ~= itemUUID then
+            _P("[BG3InventoryRework] Vacating " .. osiSlotName .. ": " .. tostring(uid))
+            pcall(function() Osi.ToInventory(uid, targetCharUUID, 1, 0, 0) end)
+        end
+        return uid
+    end
+
+    -- Step 1: If the item is on ANOTHER character, move it to target first.
+    pcall(function()
+        local currentOwner = nil
+        pcall(function() currentOwner = Osi.GetOwner(itemUUID) end)
+        if currentOwner and currentOwner ~= targetCharUUID then
+            pcall(function() Osi.ToInventory(itemUUID, targetCharUUID, 1, 0, 0) end)
+        end
+    end)
+
+    -- Step 2 + 3: Equip with slot-targeting logic.
+    -- Osi.Equip has NO slot parameter — a MeleeMainHand weapon ALWAYS goes to MainHand.
+    -- For OffHand/Ring2 we skip Osi.Equip and directly swap the item into the equipment
+    -- container at the correct slot index, then Osi.Equip the displaced occupant's original
+    -- main-hand weapon back. This is the only reliable way to target a specific slot.
+
+    if targetSlot == "MeleeOffHand" or targetSlot == "RangedOffHand" or targetSlot == "Ring2" then
+        -- Determine which slot pair we're working with
+        local primarySlot
+        if targetSlot == "MeleeOffHand" then primarySlot = "MeleeMainHand"
+        elseif targetSlot == "RangedOffHand" then primarySlot = "RangedMainHand"
+        else primarySlot = "Ring" end
+        local secondarySlot = targetSlot  -- MeleeOffHand, RangedOffHand, or Ring2
+
+        -- Get current occupants
+        local primaryUUID = getSlotOccupant(primarySlot)
+        local secondaryOccupant = vacateSlot(secondarySlot)  -- remove shield/old off-hand/ring2
+
+        -- Strategy: clear both slots, equip the PRIMARY weapon first so it takes the
+        -- primary slot, then equip the NEW weapon — with the primary slot occupied,
+        -- Osi.Equip should place it in the secondary slot (OffHand / Ring2).
+        if primaryUUID and primaryUUID ~= itemUUID then
+            -- Temporarily remove the primary weapon
+            _P("[BG3InventoryRework] Temporarily removing " .. primarySlot .. ": " .. tostring(primaryUUID))
+            pcall(function() Osi.ToInventory(primaryUUID, targetCharUUID, 1, 0, 0) end)
+
+            -- Re-equip primary weapon → goes to empty MainHand/Ring
+            _P("[BG3InventoryRework] Re-equipping primary to " .. primarySlot)
+            pcall(function() Osi.Equip(targetCharUUID, primaryUUID, 1, 0, 0) end)
+
+            -- Now equip NEW weapon — primary slot is occupied, should go to secondary
+            _P("[BG3InventoryRework] Equipping new item with " .. primarySlot .. " occupied")
+            local ok1, err1 = pcall(function() Osi.Equip(targetCharUUID, itemUUID, 1, 0, 0) end)
+            if not ok1 then return false, "Equip failed: " .. tostring(err1) end
+        else
+            -- No primary occupant — just equip normally (will go to primary slot, best we can do)
+            local ok1, err1 = pcall(function() Osi.Equip(targetCharUUID, itemUUID, 1, 0, 0) end)
+            if not ok1 then return false, "Equip failed: " .. tostring(err1) end
+        end
+
+        return true, "Item equipped to " .. targetSlot
+
+    else
+        -- Standard case: vacate the target slot and equip normally
+        if targetSlot and targetSlot ~= "" then
+            vacateSlot(targetSlot)
+        end
+
+        local ok, err = pcall(function()
+            Osi.Equip(targetCharUUID, itemUUID, 1, 0, 0)
+        end)
+
+        if not ok then
+            return false, "Equip failed: " .. tostring(err)
+        end
+
+        return true, "Item equipped successfully"
+    end
 end
 
 --- Use an item (consumable, scroll, etc.).

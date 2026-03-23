@@ -7,6 +7,7 @@ Ext.Require("Client/ArmoryUI.lua")
 Ext.Require("Client/NetHandlers.lua")
 Ext.Require("Client/InventoryPanelVM.lua")
 Ext.Require("Client/ArmoryPanelVM.lua")
+Ext.Require("Client/DevCommands.lua")
 
 Ext.Events.SessionLoaded:Subscribe(function()
     _P("[BG3InventoryRework] Client loaded")
